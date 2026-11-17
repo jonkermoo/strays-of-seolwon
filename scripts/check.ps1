@@ -8,7 +8,7 @@ function Run($label, [scriptblock]$cmd) {
 }
 if (-not (Test-Path roblox.yml)) { selene generate-roblox-std | Out-Null }
 New-Item -ItemType Directory -Force build | Out-Null
-Run '1/4 rojo build' { rojo build -o build/game.rbxl }
+Run '1/4 rojo build' { rojo build -o build/game.rbxl; if ($LASTEXITCODE -eq 0) { rojo build entry.project.json -o build/entry.rbxl } }
 Run '2/4 tests' { lune run tests/run }
 Run '3/4 selene' { selene src tests }
 Run '4/4 stylua' { stylua --check src tests }

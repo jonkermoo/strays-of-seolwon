@@ -1,0 +1,18 @@
+{
+  "name": "strays-of-seolwon-entry",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": { "$path": "src/shared" }
+    },
+    "ServerScriptService": {
+      "Lib": { "$path": "src/serverlib" },
+      "Server": { "$path": "src/entry/server" }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "Client": { "$path": "src/entry/client" }
+      }
+    }
+  }
+}

@@ -8,6 +8,7 @@ cd "$(dirname "$0")/.."
 echo "== 1/4 rojo build"
 mkdir -p build
 rojo build -o build/game.rbxl
+rojo build entry.project.json -o build/entry.rbxl
 
 echo "== 2/4 tests"
 lune run tests/run

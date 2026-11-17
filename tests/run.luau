@@ -1,20 +1,38 @@
 --!strict
--- Run with: lune run tests/run
-local Game = require("../src/shared/Config/Game")
+-- Lune test runner: runs every *.spec.luau under tests/. Run with: lune run tests/run
+-- A spec returns a table of name -> function; a test fails by erroring.
+local fs = require("@lune/fs")
+local process = require("@lune/process")
 
-local failures = 0
-local function check(name: string, ok: boolean)
-	if ok then
-		print("PASS " .. name)
-	else
-		print("FAIL " .. name)
-		failures += 1
+local passed, failed = 0, 0
+
+local function collect(dir: string, out: { string })
+	for _, entry in fs.readDir(dir) do
+		local path = dir .. "/" .. entry
+		if fs.isDir(path) then
+			collect(path, out)
+		elseif string.match(entry, "%.spec%.luau$") then
+			table.insert(out, path)
+		end
 	end
 end
 
-check("WalkSpeed is positive", Game.Player.WalkSpeed > 0)
-check("JumpPower is positive", Game.Player.JumpPower > 0)
+local specs = {}
+collect("tests", specs)
+table.sort(specs)
 
-if failures > 0 then
-	error(`{failures} test(s) failed`)
+for _, path in specs do
+	local spec = (require :: any)("./" .. string.gsub(string.sub(path, 7), "%.luau$", ""))
+	for name, fn in spec do
+		local ok, err = pcall(fn)
+		if ok then
+			passed += 1
+		else
+			failed += 1
+			print(`FAIL {path} :: {name}\n  {err}`)
+		end
+	end
 end
+
+print(`{passed} passed, {failed} failed ({#specs} spec files)`)
+process.exit(if failed > 0 then 1 else 0)
