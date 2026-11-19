@@ -6,7 +6,8 @@ local Geo = require("../../src/shared/Map/Geo")(Data)
 local Metrics = require("../../src/shared/Map/Metrics")
 
 local function mmss(s: number): string
-	return string.format("%d:%02d", s // 60, math.floor(s % 60 + 0.5))
+	local r = math.floor(s + 0.5)
+	return string.format("%d:%02d", r // 60, r % 60)
 end
 
 local function check(from: string, to: string)

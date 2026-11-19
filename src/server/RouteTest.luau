@@ -31,7 +31,8 @@ local function waypoints(pts: { { number } }): { Vector3 }
 		for k = 1, n do
 			local x = a[1] + (b[1] - a[1]) * k / n
 			local y = a[2] + (b[2] - a[2]) * k / n
-			table.insert(out, Vector3.new(x, Metrics.LandTop + Geo.roadHeight(x, y), y))
+			local X, Z = Geo.world(x, y)
+			table.insert(out, Vector3.new(X, Geo.roadHeight(x, y), Z))
 		end
 	end
 	return out
@@ -54,7 +55,8 @@ local function walk(from: string, to: string, results: { any })
 	local root = dummy:FindFirstChild("HumanoidRootPart") :: BasePart
 	hum.WalkSpeed = Metrics.Player.sprint
 	local s = Data.Nodes[from]
-	dummy:PivotTo(CFrame.new(s[1], Metrics.LandTop + Geo.roadHeight(s[1], s[2]) + 4, s[2]))
+	local sX, sZ = Geo.world(s[1], s[2])
+	dummy:PivotTo(CFrame.new(sX, Geo.roadHeight(s[1], s[2]) + 4, sZ))
 	dummy.Parent = workspace
 	root:SetNetworkOwner(nil)
 	task.wait(1)
@@ -71,14 +73,15 @@ local function walk(from: string, to: string, results: { any })
 			end
 			if now() - started > STUCK_AFTER then
 				-- Note where it got stuck, then put it on the waypoint and go on.
-				table.insert(stuck, { i = i, x = math.floor(wp.X), y = math.floor(wp.Z) })
+				local mx, my = Geo.map(wp.X, wp.Z)
+				table.insert(stuck, { i = i, x = math.floor(mx), y = math.floor(my) })
 				dummy:PivotTo(CFrame.new(wp + Vector3.new(0, 4, 0)))
 				break
 			end
 			if hum.FloorMaterial == Enum.Material.Air and root.Position.Y < -20 then
 				table.insert(
 					stuck,
-					{ i = i, x = math.floor(wp.X), y = math.floor(wp.Z), fell = true }
+					{ i = i, x = math.floor(wp.X), z = math.floor(wp.Z), fell = true }
 				)
 				dummy:PivotTo(CFrame.new(wp + Vector3.new(0, 4, 0)))
 				break

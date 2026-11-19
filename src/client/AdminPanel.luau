@@ -11,7 +11,6 @@ local Shared = ReplicatedStorage.Shared
 local DebugUi = require(Shared.DebugUi)
 local Data = require(Shared.Map.Data)
 local Geo = require(Shared.Map.Geo)(Data)
-local Metrics = require(Shared.Map.Metrics)
 
 local AdminPanel = {}
 
@@ -121,8 +120,9 @@ function AdminPanel.start()
 		if not c then
 			return
 		end
-		local gy = z or (Metrics.LandTop + Geo.roadHeight(x, y))
-		c:PivotTo(CFrame.new(x, gy + 6, y))
+		local gy = z or Geo.roadHeight(x, y)
+		local X, Z = Geo.world(x, y)
+		c:PivotTo(CFrame.new(X, gy + 6, Z))
 	end
 
 	DebugUi.label(panel, "F2 toggles. Fly: WASD, Space up, Ctrl down. Ctrl+click: teleport.", 36)
@@ -202,7 +202,8 @@ function AdminPanel.start()
 			params.FilterType = Enum.RaycastFilterType.Exclude
 			local hit = workspace:Raycast(ray.Origin, ray.Direction * 20000, params)
 			if hit then
-				teleport(hit.Position.X, hit.Position.Z, hit.Position.Y)
+				local mx, my = Geo.map(hit.Position.X, hit.Position.Z)
+				teleport(mx, my, hit.Position.Y)
 			end
 		end
 	end)
@@ -254,14 +255,15 @@ function AdminPanel.start()
 		end
 		if gui.Enabled and root then
 			local p = root.Position
+			local mx, my = Geo.map(p.X, p.Z)
 			readout.Text = string.format(
 				"Map x %d, y %d (Y %d)\n%s · %s · %s",
-				p.X,
-				p.Z,
+				mx,
+				my,
 				p.Y,
-				Geo.cell(p.X, p.Z),
-				Geo.zone(p.X, p.Z),
-				if Geo.isLand(p.X, p.Z) then "land" else "water"
+				Geo.cell(mx, my),
+				Geo.zone(mx, my),
+				if Geo.isLand(mx, my) then "land" else "water"
 			)
 			state.Text = `speed {speed}{if flying then " · flying" else ""}{if noclip
 				then " · noclip"

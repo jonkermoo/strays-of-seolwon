@@ -3,8 +3,13 @@
 local Data = require("../src/shared/Map/Data")
 local Geo = require("../src/shared/Map/Geo")(Data)
 
+local function node(id: string): (number, number)
+	local p = Data.Nodes[id]
+	return p[1], p[2]
+end
+
 return {
-	["every planned route has the plan's road length"] = function()
+	["every planned route has the recorded road length"] = function()
 		for _, id in Data.Routes do
 			local len = Geo.route("HQ1", id)
 			assert(
@@ -19,29 +24,42 @@ return {
 		local _, pts = Geo.route("HQ1", "NC")
 		assert(pts[1] == Data.Nodes.HQ1 and pts[#pts] == Data.Nodes.NC, "ends")
 	end,
-	["HQs and towns are on land, the lake is not, G2 isle is"] = function()
-		for _, id in { "HQ1", "HQ2", "PORT", "NC", "RT", "SW" } do
-			local p = Data.Nodes[id]
-			assert(Geo.isLand(p[1], p[2]), id)
+	["towns are on dry land; the lake and the channel are water"] = function()
+		for _, id in { "HQ1", "HQ2", "PORT", "NC", "SW" } do -- River Town spans the river
+			local x, y = node(id)
+			assert(Geo.isLand(x, y), id)
+			assert(Geo.height(x, y) > 2, id .. " above the sea")
 		end
-		assert(not Geo.isLand(3300, 3300), "lake")
-		assert(Geo.isLand(3540, 3210), "G2 isle")
-		assert(not Geo.isLand(6500, 4700), "channel")
+		assert(Geo.waterLevel(8250, 8250) == Data.LakeLevel, "lake")
+		assert(Geo.waterLevel(8850, 8025) == nil, "G2 isle is dry")
+		assert(Geo.waterLevel(16250, 11750) == 0, "Sawmill channel is sea")
 	end,
 	["HQ 1 is autumn, North City is winter"] = function()
-		assert(Geo.zone(2050, 6300) == "autumn", "HQ1")
-		assert(Geo.zone(3650, 1750) == "winter", "NC")
+		local x, y = node("HQ1")
+		assert(Geo.zone(x, y) == "autumn", "HQ1")
+		x, y = node("NC")
+		assert(Geo.zone(x, y) == "winter", "NC")
 	end,
-	["HQ 1 sits on its hill; lowlands are flat"] = function()
-		assert(Geo.height(2050, 6300) > 10, "HQ1 hill")
-		assert(Geo.height(3700, 5250) == 0, "River Town")
+	["mountains stand above the lowlands; off the frame is sea"] = function()
+		assert(Geo.height(14000, -500) < 0, "sea")
+		local poly = Data.Mountains[1].poly
+		local mx, my = 0, 0
+		for _, p in poly do
+			mx += p[1] / #poly
+			my += p[2] / #poly
+		end
+		assert(Geo.height(mx, my) > 150, "north-west peaks are high in the middle")
 	end,
 	["every place has a unique id and is on the frame"] = function()
 		local seen = {}
+		local f = Data.Frame
 		for _, p in Data.Places do
 			assert(not seen[p.id], p.id)
 			seen[p.id] = true
-			assert(p.pos[1] >= 0 and p.pos[1] <= 8192 and p.pos[2] >= 0 and p.pos[2] <= 7168, p.id)
+			assert(
+				p.pos[1] >= 0 and p.pos[1] <= f.width and p.pos[2] >= 0 and p.pos[2] <= f.height,
+				p.id
+			)
 		end
 	end,
 }
