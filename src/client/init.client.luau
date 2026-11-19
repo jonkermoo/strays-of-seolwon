@@ -10,6 +10,7 @@ local Guide = require(Shared.Config.Guide)
 local DebugUi = require(Shared.DebugUi)
 
 local player = Players.LocalPlayer
+task.spawn(require(script.AdminPanel).start) -- F2 admin panel (Studio / owner only)
 local gui = DebugUi.screen(player:WaitForChild("PlayerGui"), "DataDebug")
 
 -- left: player data

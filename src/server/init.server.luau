@@ -52,12 +52,19 @@ if RunService:IsStudio() then
 	end)
 end
 
--- A plain grey baseplate to stand on until the map exists.
-if not workspace:FindFirstChild("PlaceholderGround") then
+-- A plain grey baseplate to stand on until the map exists (the greybox replaces it).
+if
+	not workspace:FindFirstChild("PlaceholderGround") and not workspace:FindFirstChild("Greybox")
+then
 	local ground = Instance.new("Part")
 	ground.Name = "PlaceholderGround"
 	ground.Anchored = true
 	ground.Size = Vector3.new(512, 4, 512)
 	ground.Position = Vector3.new(0, -2, 0)
 	ground.Parent = workspace
+end
+
+-- Studio-only greybox walk test (see RouteTest.luau).
+if RunService:IsStudio() and workspace:GetAttribute("RouteTest") == true then
+	task.spawn(require(script.RouteTest).run)
 end

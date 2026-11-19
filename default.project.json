@@ -3,15 +3,29 @@
   "tree": {
     "$className": "DataModel",
     "ReplicatedStorage": {
-      "Shared": { "$path": "src/shared" }
+      "Shared": {
+        "$path": "src/shared"
+      }
     },
     "ServerScriptService": {
-      "Lib": { "$path": "src/serverlib" },
-      "Server": { "$path": "src/server" }
+      "Lib": {
+        "$path": "src/serverlib"
+      },
+      "Server": {
+        "$path": "src/server"
+      }
     },
     "StarterPlayer": {
       "StarterPlayerScripts": {
-        "Client": { "$path": "src/client" }
+        "Client": {
+          "$path": "src/client"
+        }
+      }
+    },
+    "Workspace": {
+      "$className": "Workspace",
+      "Greybox": {
+        "$path": "assets/Greybox.rbxm"
       }
     }
   }
