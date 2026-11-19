@@ -308,7 +308,7 @@ for _, pl in Data.Places do
 	elseif pl.kind == "gated" then
 		base(folder(buildings, pl.id), x, y, pl.r or 120, C.gated, 5)
 	elseif pl.kind == "hq" then
-		base(folder(buildings, pl.id), x, y, 100, C.playerWall, 5)
+		base(folder(buildings, pl.id), x, y, pl.r or 100, C.playerWall, 12)
 	elseif pl.kind == "fb" then
 		base(folder(buildings, pl.id), x, y, 60, C.playerWall, 2)
 	elseif pl.kind == "veh" then

@@ -30,9 +30,9 @@ return {
 			assert(Geo.isLand(x, y), id)
 			assert(Geo.height(x, y) > 2, id .. " above the sea")
 		end
-		assert(Geo.waterLevel(8250, 8250) == Data.LakeLevel, "lake")
-		assert(Geo.waterLevel(8850, 8025) == nil, "G2 isle is dry")
-		assert(Geo.waterLevel(16250, 11750) == 0, "Sawmill channel is sea")
+		assert(Geo.waterLevel(6600, 6600) == Data.LakeLevel, "lake")
+		assert(Geo.waterLevel(7080, 6420) == nil, "G2 isle is dry")
+		assert(Geo.waterLevel(13000, 9400) == 0, "Sawmill channel is sea")
 	end,
 	["HQ 1 is autumn, North City is winter"] = function()
 		local x, y = node("HQ1")
@@ -41,7 +41,7 @@ return {
 		assert(Geo.zone(x, y) == "winter", "NC")
 	end,
 	["mountains stand above the lowlands; off the frame is sea"] = function()
-		assert(Geo.height(14000, -500) < 0, "sea")
+		assert(Geo.height(11200, -400) < 0, "sea")
 		local poly = Data.Mountains[1].poly
 		local mx, my = 0, 0
 		for _, p in poly do

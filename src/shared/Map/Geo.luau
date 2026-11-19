@@ -242,7 +242,7 @@ return function(Data: any)
 					or p.kind == "enemy"
 					or p.kind == "gated"
 				then p.r or 120
-				elseif p.kind == "hq" then 110
+				elseif p.kind == "hq" then (p.r or 100) + 10
 				else nil
 			if r then
 				table.insert(s, { x = p.pos[1], y = p.pos[2], r = r })
