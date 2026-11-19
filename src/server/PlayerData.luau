@@ -18,6 +18,7 @@ local SessionLock = require(Shared.Rules.SessionLock)(Servers)
 local Unlocks = require(Shared.Rules.Unlocks)(Progression)
 local Lib = game:GetService("ServerScriptService").Lib
 local Stores = require(Lib.Stores)
+local Analytics = require(script.Parent.Analytics)
 
 local PlayerData = {}
 PlayerData.Unlocks = Unlocks
@@ -82,6 +83,7 @@ function PlayerData.award(player: Player, source: string, amount: number?): numb
 	local before = save.marks
 	local added = PlayerSave.award(save, source, amount, now())
 	if added > 0 then
+		Analytics.marks(player, save, source, added)
 		PlayerData.push(player, Unlocks.newBetween(before, save.marks))
 	end
 	return added
@@ -95,6 +97,7 @@ function PlayerData.finishGuide(player: Player): number
 	local before = save.marks
 	local added = PlayerSave.finishGuide(save, now())
 	if added > 0 then
+		Analytics.marks(player, save, Progression.ReleaseCode.source, added)
 		PlayerData.push(player, Unlocks.newBetween(before, save.marks))
 	end
 	return added
@@ -126,6 +129,7 @@ local function save(player: Player, release: boolean)
 	end
 	s.saving = true
 	s.save.lastJoin = now()
+	Analytics.accrue(player, s.save)
 	local result =
 		SessionLock.save(store, key(player), JOB, s.save, now(), release, PlayerSave.merge)
 	s.saving = false
@@ -169,6 +173,7 @@ local function load(player: Player)
 			s.lastJoin = now()
 			sessions[player] =
 				{ save = s, highWritten = if okHigh then (highest or 0) else 0, saving = false }
+			Analytics.join(player, s)
 			PlayerData.push(player)
 			loadedEvent:Fire(player)
 			return
@@ -184,8 +189,10 @@ function PlayerData.start()
 		task.spawn(load, p)
 	end
 	Players.PlayerRemoving:Connect(function(p)
+		Analytics.leave(p, PlayerData.get(p))
 		save(p, true)
 	end)
+	Analytics.start(PlayerData.get)
 	task.spawn(function()
 		while true do
 			task.wait(Servers.AutosaveSeconds)
@@ -202,6 +209,7 @@ function PlayerData.start()
 		for p in sessions do
 			pending += 1
 			task.spawn(function()
+				Analytics.leave(p, PlayerData.get(p))
 				save(p, true)
 				pending -= 1
 			end)

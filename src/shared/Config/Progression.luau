@@ -166,6 +166,36 @@ return table.freeze({
 
 	RankPatch = table.freeze(rankSteps()),
 
+	-- Rank ladder (user, 2026-11-19): the ONE table of rank thresholds in marks, simplified to
+	-- chevrons and bars: bars 100-500, chevrons 600-1,000, chevron+bar combos to 2,000, then
+	-- 2,500, 3,000, 4,000 and a simple 5,000 patch. Nothing past 5,000 is designed until a player
+	-- gets there; analytics reports who reaches each step (Rules/RankTrack, server/Analytics).
+	-- Values may still change: edit them here only. (RankPatch above is the older 10,000 ladder;
+	-- the art pipeline replaces it with patches for these steps.)
+	RankLadder = table.freeze({
+		100,
+		200,
+		300,
+		400,
+		500, -- bars
+		600,
+		700,
+		800,
+		900,
+		1000, -- chevrons
+		1200,
+		1400,
+		1600,
+		1800,
+		2000, -- chevron + bar
+		2500,
+		3000,
+		4000,
+		5000,
+	}),
+	-- Analytics-only marks past the last designed step, to see when players outgrow it.
+	RankLadderBeyond = table.freeze({ 6000, 8000, 10000 }),
+
 	-- Marks-track cosmetic slots (work on every class). Thresholds are set later (art not ready).
 	CosmeticSlots = table.freeze({ "vest", "uniform", "bag" }),
 	MarksTrackCosmetics = table.freeze({} :: { [string]: { slot: string, marks: number } }),

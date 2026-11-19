@@ -29,6 +29,10 @@ export type Save = {
 	lastClass: string,
 	firstJoin: number,
 	lastJoin: number,
+	-- Analytics (time and sessions to each rank step; see server/Analytics).
+	playSeconds: number, -- total time in campaign servers
+	sessions: number, -- campaign-server joins
+	rankLogged: number, -- highest rank step (marks) already reported
 }
 
 return function(progression: any, servers: any)
@@ -48,6 +52,9 @@ return function(progression: any, servers: any)
 			lastClass = "rifleman",
 			firstJoin = now,
 			lastJoin = now,
+			playSeconds = 0,
+			sessions = 0,
+			rankLogged = 0,
 		}
 	end
 
@@ -130,6 +137,9 @@ return function(progression: any, servers: any)
 		end
 		out.sources = sources
 		out.firstJoin = math.min(stored.firstJoin, ours.firstJoin)
+		out.playSeconds = math.max(stored.playSeconds or 0, ours.playSeconds)
+		out.sessions = math.max(stored.sessions or 0, ours.sessions)
+		out.rankLogged = math.max(stored.rankLogged or 0, ours.rankLogged)
 		return out
 	end
 
