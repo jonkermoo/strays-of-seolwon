@@ -134,6 +134,7 @@ return function(Data: any)
 	local BK = 256
 	local MAX_GRADE = math.tan(math.rad(14)) -- steepest road a loaded truck takes
 	local PAD_BLEND = 220
+	local FOREST_AT = -0.055 -- lower = more forest (2026-11-20: +50%)
 
 	local function idx(i: number, j: number): number
 		return j * NX + i + 1
@@ -633,7 +634,18 @@ return function(Data: any)
 			return 0
 		end
 		local n = fbm(x / 1300 + 3.7, y / 1300 - 8.1, 3) + 0.35 * fbm(x / 260, y / 260, 2)
-		local f = smoothstep((n - 0.02) / 0.22) * smoothstep((c - 50) / 150)
+		local f = smoothstep((n - FOREST_AT) / 0.22)
+		-- named forests (Data.Forests): dense inside a ragged edge, with clearings
+		for _, fo in Data.Forests or {} do
+			fo.box = fo.box or bbox(fo.poly, 0)
+			if inBox(fo.box, x, y) and Geo.inside(fo.poly, x, y) then
+				local d = Geo.lineDist(fo.poly, x, y, true)
+				local edge = smoothstep((d + 70 * fbm(x / 150, y / 150, 2)) / 220)
+				local clear = smoothstep((fbm(x / 450 + 11.3, y / 450 - 4.1, 2) - 0.2) / 0.08)
+				f = lerp(f, fo.density * (1 - clear), edge)
+			end
+		end
+		f *= smoothstep((c - 50) / 150)
 		f *= 1 - smoothstep((natural(x, y) - 230) / 70)
 		for _, st in siteBuckets[math.floor(y / BK) * 1000 + math.floor(x / BK)] or {} do
 			local d = math.sqrt((x - st.x) ^ 2 + (y - st.y) ^ 2)

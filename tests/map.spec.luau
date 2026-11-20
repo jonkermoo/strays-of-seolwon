@@ -30,9 +30,9 @@ return {
 			assert(Geo.isLand(x, y), id)
 			assert(Geo.height(x, y) > 2, id .. " above the sea")
 		end
-		assert(Geo.waterLevel(4950, 4950) == Data.LakeLevel, "lake")
-		assert(Geo.waterLevel(5310, 4815) == nil, "G2 isle is dry")
-		assert(Geo.waterLevel(9750, 7050) == 0, "Sawmill channel is sea")
+		assert(Geo.waterLevel(4621, 4621) == Data.LakeLevel, "lake")
+		assert(Geo.waterLevel(4957, 4495) == nil, "G2 isle is dry")
+		assert(Geo.waterLevel(9103, 6582) == 0, "Sawmill channel is sea")
 	end,
 	["HQ 1 is autumn, North City is winter"] = function()
 		local x, y = node("HQ1")
@@ -41,7 +41,7 @@ return {
 		assert(Geo.zone(x, y) == "winter", "NC")
 	end,
 	["mountains stand above the lowlands; off the frame is sea"] = function()
-		assert(Geo.height(8400, -300) < 0, "sea")
+		assert(Geo.height(7842, -280) < 0, "sea")
 		local poly = Data.Mountains[1].poly
 		local mx, my = 0, 0
 		for _, p in poly do
@@ -91,7 +91,7 @@ return {
 		end
 	end,
 	["forests grow on land, not in the lake or on town pads"] = function()
-		assert(Geo.forest(4950, 4950) == 0, "lake")
+		assert(Geo.forest(4621, 4621) == 0, "lake")
 		local nc = Data.Nodes.NC
 		assert(Geo.forest(nc[1], nc[2]) == 0, "North City")
 		local any = 0
@@ -101,5 +101,13 @@ return {
 			end
 		end
 		assert(any > 40, "some forest")
+	end,
+	["the map frame centres on the 4-stud terrain voxel grid"] = function()
+		-- terrain is written in 4-stud voxels from world X = x - width / 2: an off-grid half
+		-- width makes WriteVoxels fail ("65-element array expected")
+		assert(
+			Data.Frame.width / 2 % 4 == 0 and Data.Frame.height / 2 % 4 == 0,
+			"frame / 2 on the grid"
+		)
 	end,
 }

@@ -237,7 +237,7 @@ end
 local function onRoad(k: number): boolean
 	local x, y = centre(k)
 	local d, _, kind, half = Geo.nearestRoad(x, y)
-	return kind ~= nil and d < half + 2
+	return kind ~= nil and kind ~= "rail" and d < half + 2 -- the old railway is not a road
 end
 
 -- loop goal: node B itself, or any dry road cell close to it (town centres can sit on a bridge)
@@ -295,7 +295,7 @@ rebuild()
 
 -- hand-picked loops through country the road graph leaves empty (a waypoint keeps them there)
 local EXTRA = {
-	{ a = "M1", via = { 8400, 6400 }, b = "M2" }, -- the eastern interior
+	{ a = "M1", via = { 7842, 5975 }, b = "M2" }, -- the eastern interior
 }
 for _, x in EXTRA do
 	local A, V, B = Data.Nodes[x.a], x.via, Data.Nodes[x.b]
