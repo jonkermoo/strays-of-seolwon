@@ -3,6 +3,7 @@
 -- countryside markers): dirt roads and trails (Data.Dirt) and soft buildings with stray loot
 -- spots (Data.Buildings). Deterministic. Run from the repo root:
 --   lune run tools/greybox/countryside
+-- 0. dirt roads up to the garrisons that sit off the road (M1, M2, s1)
 -- 1. back-country loops: dirt roads between road nodes whose road trip is a long way round
 -- 2. trails up to the radio sites and into the deep forests (logging trails)
 -- 3. farm / cabin / hut clusters along all roads; off-road ones get a dirt spur or a trail
@@ -40,7 +41,7 @@ end
 local G = 32
 local NX, NY = W // G, H // G
 local blocked: { boolean } = {}
-local solid: { boolean } = {} -- item markers: never crossed, even near the ends
+local solid: { boolean } = {} -- item markers and water: never crossed, even near the ends
 local penalty: { number } = {}
 local height: { number } = {}
 local hard = {} -- sites a path may not cross
@@ -90,7 +91,7 @@ local function buildGrid()
 				break
 			end
 		end
-		solid[k] = hit
+		solid[k] = hit or Geo.waterLevel(x, y) ~= nil -- water too: never crossed, even at the ends
 		height[k] = Geo.height(x, y)
 		local d, _, kind = Geo.nearestRoad(x, y)
 		-- don't run alongside an existing road (crossing or joining it is fine)
@@ -239,6 +240,18 @@ local function onRoad(k: number): boolean
 	return kind ~= nil and d < half + 2
 end
 
+-- loop goal: node B itself, or any dry road cell close to it (town centres can sit on a bridge)
+local function reaches(B: Pt): (number) -> boolean
+	local bk = cellOf(B[1], B[2])
+	return function(k: number): boolean
+		if k == bk then
+			return true
+		end
+		local x, y = centre(k)
+		return (x - B[1]) ^ 2 + (y - B[2]) ^ 2 < 250 * 250 and onRoad(k)
+	end
+end
+
 local function rebuild()
 	Geo = GeoMod(Data)
 	buildGrid()
@@ -260,6 +273,26 @@ end
 -------------------------------------------------------------------- 1. back-country loops
 buildGrid()
 local loopMids: { Pt } = {}
+-- garrisons out in open country (M1, M2, s1) are reached by a dirt road from the nearest road
+local OFFROAD = { M1 = true, M2 = true, S1 = true }
+for _, p in Data.Places do
+	if OFFROAD[p.id] then
+		local pts = search(p.pos, onRoad, p.pos)
+		if pts then
+			pts = simplify(pts, 16)
+			local rev = {}
+			for i = #pts, 1, -1 do
+				table.insert(rev, pts[i])
+			end
+			table.insert(Data.Dirt, { kind = "dirt", use = `garrison {p.id}`, pts = rev })
+			print(`garrison road {p.id}: {math.floor(Geo.length(rev))} studs`)
+		else
+			error("no road to " .. p.id)
+		end
+	end
+end
+rebuild()
+
 -- hand-picked loops through country the road graph leaves empty (a waypoint keeps them there)
 local EXTRA = {
 	{ a = "M1", via = { 8400, 6400 }, b = "M2" }, -- the eastern interior
@@ -270,14 +303,14 @@ for _, x in EXTRA do
 	local p1 = search(A, function(k)
 		return k == vk
 	end, V)
-	local p2 = p1 and search(V, function(k)
-		return k == bk
-	end, B)
+	local p2 = p1 and search(V, reaches(B), B)
 	if p1 and p2 then
 		for i = 2, #p2 do
 			table.insert(p1, p2[i])
 		end
-		p1[#p1] = B
+		if cellOf(p1[#p1][1], p1[#p1][2]) == bk then
+			p1[#p1] = B
+		end
 		local pts = simplify(p1, 24)
 		table.insert(Data.Dirt, { kind = "dirt", use = `loop {x.a}-{x.b}`, pts = pts })
 		print(`loop {x.a}-{x.b} (via): {math.floor(Geo.length(pts))} studs`)
@@ -324,11 +357,11 @@ for _, c in cands do
 		end
 	end
 	local bk = cellOf(B[1], B[2])
-	local pts = search(A, function(k)
-		return k == bk
-	end, B)
+	local pts = search(A, reaches(B), B)
 	if pts and spread then
-		pts[#pts] = B
+		if cellOf(pts[#pts][1], pts[#pts][2]) == bk then
+			pts[#pts] = B
+		end
 		pts = simplify(pts, 24)
 		if Geo.length(pts) < c.road * 0.8 and overlap(pts) < 0.3 then
 			table.insert(Data.Dirt, { kind = "dirt", use = `loop {c.a}-{c.b}`, pts = pts })
