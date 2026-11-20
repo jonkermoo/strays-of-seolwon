@@ -457,20 +457,20 @@ return function(Data: any)
 			end
 		end
 
-		-- 3. pin the ends and re-cap the grade both ways (cut or fill) so the ends join smoothly
-		for _, l in lines do
-			local sm = l.sm
-			if l.a then
-				sm[1], sm[#sm] = nodeH[l.a], nodeH[l.b]
-				for _ = 1, 2 do
-					for i = 2, #sm - 1 do
-						sm[i] = math.clamp(sm[i], sm[i - 1] - rise, sm[i - 1] + rise)
-					end
-					for i = #sm - 1, 2, -1 do
-						sm[i] = math.clamp(sm[i], sm[i + 1] - rise, sm[i + 1] + rise)
-					end
+		-- re-cap the grade both ways (cut or fill) between pinned ends
+		local function recap(sm: { number })
+			for _ = 1, 2 do
+				for i = 2, #sm - 1 do
+					sm[i] = math.clamp(sm[i], sm[i - 1] - rise, sm[i - 1] + rise)
+				end
+				for i = #sm - 1, 2, -1 do
+					sm[i] = math.clamp(sm[i], sm[i + 1] - rise, sm[i + 1] + rise)
 				end
 			end
+		end
+
+		local function addLine(l: any)
+			local sm = l.sm
 			local samples = l.samples
 			for i = 1, #samples - 1 do
 				local seg = {
@@ -494,6 +494,39 @@ return function(Data: any)
 					end
 				end
 			end
+		end
+
+		-- 3. pin the ends at the shared junction heights and join them smoothly
+		for _, l in lines do
+			if l.a then
+				l.sm[1], l.sm[#l.sm] = nodeH[l.a], nodeH[l.b]
+				recap(l.sm)
+			end
+			addLine(l)
+		end
+
+		-- 4. dirt roads and trails (Data.Dirt) join whatever road they start or end on at that
+		-- road's height; they are not part of the planned route graph
+		local function deckAt(x: number, y: number): (number, number)
+			local best, bh = math.huge, 0
+			for _, sg in b[math.floor(y / BK) * 1000 + math.floor(x / BK)] or {} do
+				local d, t = segDist(x, y, sg.a, sg.b)
+				if d - sg.half < best then
+					best, bh = d - sg.half, lerp(sg.ha, sg.hb, t)
+				end
+			end
+			return best, bh
+		end
+		for _, d in Data.Dirt or {} do
+			local samples, sm = profile(d.pts)
+			for _, i in { 1, #sm } do
+				local gap, h = deckAt(samples[i].x, samples[i].y)
+				if gap < 6 then
+					sm[i] = h
+				end
+			end
+			recap(sm)
+			addLine({ kind = d.kind, width = Data.RoadWidth[d.kind], samples = samples, sm = sm })
 		end
 		roadPts = all
 		buckets = b
@@ -542,7 +575,12 @@ return function(Data: any)
 			h = lerp(h, rh, w)
 			if d < half then
 				return h,
-					if kind == "track" then "track" elseif kind == "rail" then "rail" else "road",
+					if kind == "track"
+							or kind == "dirt"
+							or kind == "trail"
+						then "track"
+						elseif kind == "rail" then "rail"
+						else "road",
 					false
 			end
 			return h, "shoulder", false
@@ -584,6 +622,24 @@ return function(Data: any)
 			return "frost"
 		end
 		return "winter"
+	end
+
+	-- Forest cover 0..1 (placeholder trees for now): broad noise patches with ragged edges; none
+	-- on beaches, water, sites or above the tree line.
+	function Geo.forest(x: number, y: number): number
+		prepare()
+		local c = Geo.coastDist(x, y)
+		if c < 50 or Geo.waterLevel(x, y) then
+			return 0
+		end
+		local n = fbm(x / 1300 + 3.7, y / 1300 - 8.1, 3) + 0.35 * fbm(x / 260, y / 260, 2)
+		local f = smoothstep((n - 0.02) / 0.22) * smoothstep((c - 50) / 150)
+		f *= 1 - smoothstep((natural(x, y) - 230) / 70)
+		for _, st in siteBuckets[math.floor(y / BK) * 1000 + math.floor(x / BK)] or {} do
+			local d = math.sqrt((x - st.x) ^ 2 + (y - st.y) ^ 2)
+			f *= smoothstep((d - st.r) / 80)
+		end
+		return f
 	end
 
 	function Geo.cell(x: number, y: number): string

@@ -316,6 +316,140 @@ for _, pl in Data.Places do
 	end
 end
 
+-------------------------------------------------------------------- countryside buildings + loot
+-- Soft buildings from Data.Buildings (tools/greybox/countryside): solid placeholders; a third
+-- have 1-3 stray common loot spots by the door (yellow pads).
+local country = folder(root, "Countryside")
+local lootCount, built = 0, 0
+for i, b in Data.Buildings or {} do
+	local f = folder(country, `{b.kind}_{i}`)
+	f:SetAttribute("Kind", b.kind)
+	if block(f, b.pos[1], b.pos[2], b.size[1], b.size[2], b.size[3], b.rot, C.building) then
+		built += 1
+	end
+	for _, l in b.loot do
+		local pad = part(
+			f,
+			"LootSpot",
+			Vector3.new(2, 0.4, 2),
+			CFrame.new(at(l[1], l[2], Geo.height(l[1], l[2]) + 0.2)),
+			C.pickup
+		)
+		pad.Material = Enum.Material.Neon
+		pad.CanCollide = false
+		pad:SetAttribute("Tier", "common")
+		lootCount += 1
+	end
+end
+
+-------------------------------------------------------------------- placeholder trees
+-- Where forests will be (Geo.forest), plus scattered single trees. Trunk + canopy (a sphere
+-- mesh); only trunks collide. Conifers in the snow, mixed in the frost band, mostly broadleaf
+-- autumn colours in sector B. One folder per map cell.
+local trees = folder(root, "Trees")
+local cellFolders: { [string]: any } = {}
+local clear: { { number } } = {} -- {x, y, r}: keep trees off sites and buildings
+for _, pl in Data.Places do
+	if not pl.site then
+		table.insert(clear, { pl.pos[1], pl.pos[2], (pl.r or 30) + 20 })
+	else
+		table.insert(clear, { pl.pos[1], pl.pos[2], 14 })
+	end
+end
+for _, b in Data.Buildings or {} do
+	table.insert(clear, { b.pos[1], b.pos[2], math.max(b.size[1], b.size[2]) / 2 + 8 })
+end
+local CON = {
+	Color3.fromRGB(46, 64, 50),
+	Color3.fromRGB(56, 74, 58),
+	Color3.fromRGB(40, 56, 46),
+}
+local SNOWY = Color3.fromRGB(196, 204, 202)
+local AUT = {
+	Color3.fromRGB(176, 104, 48),
+	Color3.fromRGB(150, 118, 52),
+	Color3.fromRGB(124, 72, 42),
+	Color3.fromRGB(160, 132, 70),
+}
+local TRUNK = Color3.fromRGB(78, 62, 50)
+local treeCount = 0
+local SP = 30
+for gy = SP / 2, Data.Frame.height, SP do
+	for gx = SP / 2, Data.Frame.width, SP do
+		local x, y = gx + (rnd() - 0.5) * SP * 0.8, gy + (rnd() - 0.5) * SP * 0.8
+		local f = Geo.forest(x, y)
+		local p = if f > 0.1 then f ^ 1.3 * 0.8 else 0.012
+		if rnd() < p and Geo.coastDist(x, y) > 40 and not Geo.waterLevel(x, y) then
+			local ok = true
+			local d, _, kind, half = Geo.nearestRoad(x, y)
+			if kind and d < half + 8 then
+				ok = false
+			end
+			if ok then
+				for _, c in clear do
+					if (x - c[1]) ^ 2 + (y - c[2]) ^ 2 < c[3] * c[3] then
+						ok = false
+						break
+					end
+				end
+			end
+			local h = Geo.height(x, y)
+			if
+				ok
+				and math.abs(Geo.height(x + 4, y) - h) + math.abs(Geo.height(x, y + 4) - h) > 7
+			then
+				ok = false -- cliffs and rock faces
+			end
+			if ok then
+				local zone = Geo.zone(x, y)
+				local broad = if zone == "autumn"
+					then rnd() < 0.65
+					elseif zone == "frost" then rnd() < 0.25
+					else rnd() < 0.04
+				local tall = 18 + rnd() * 16
+				local cell = Geo.cell(x, y)
+				local cf = cellFolders[cell]
+				if not cf then
+					cf = folder(trees, cell)
+					cellFolders[cell] = cf
+				end
+				local m = Instance.new("Model")
+				m.Name = if broad then "Broadleaf" else "Conifer"
+				m.Parent = cf
+				local trunkH = if broad then tall * 0.55 else tall * 0.4
+				part(
+					m,
+					"Trunk",
+					Vector3.new(1.6, trunkH + 2, 1.6),
+					CFrame.new(at(x, y, h + trunkH / 2 - 1)),
+					TRUNK
+				)
+				local w = if broad then 10 + rnd() * 6 else 7 + rnd() * 4
+				local ch = if broad then w * 0.9 else tall * 0.8
+				local col = if broad
+					then AUT[1 + math.floor(rnd() * #AUT)]
+					elseif zone == "winter" and rnd() < 0.3 then SNOWY
+					else CON[1 + math.floor(rnd() * #CON)]
+				local canopy = part(
+					m,
+					"Canopy",
+					Vector3.new(w, ch, w),
+					CFrame.new(at(x, y, h + tall - ch / 2)),
+					col
+				)
+				canopy.CanCollide = false
+				local mesh = Instance.new("SpecialMesh")
+				mesh.MeshType = Enum.MeshType.Sphere
+				mesh.Parent = canopy
+				treeCount += 1
+			end
+		end
+	end
+end
+print(
+	`countryside: {built}/{#(Data.Buildings or {})} buildings, {lootCount} loot spots, {treeCount} trees`
+)
+
 -------------------------------------------------------------------- places (markers)
 local KIND = {
 	aoi = { color = C.building, pole = 160 },

@@ -62,4 +62,44 @@ return {
 			)
 		end
 	end,
+	["dirt roads and trails start on a road; loops join two road nodes"] = function()
+		local main = table.clone(Data)
+		main.Dirt = {}
+		local GeoMain = require("../src/shared/Map/Geo")(main)
+		for i, d in Data.Dirt do
+			local p = d.pts[1]
+			local dd, _, kind, half = GeoMain.nearestRoad(p[1], p[2])
+			local ok = kind ~= nil and dd < half + 10
+			for k = 1, i - 1 do
+				ok = ok or (Geo.lineDist(Data.Dirt[k].pts, p[1], p[2], false)) < 12
+			end
+			assert(ok, `{d.use} starts off the roads at {p[1]}, {p[2]}`)
+			assert(d.kind == "dirt" or d.kind == "trail", d.use)
+		end
+	end,
+	["countryside buildings stay dry and off the roads; loot sits by its building"] = function()
+		assert(#Data.Buildings >= 100, "about 120 buildings")
+		for _, b in Data.Buildings do
+			local x, y = b.pos[1], b.pos[2]
+			assert(Geo.isLand(x, y) and not Geo.waterLevel(x, y), `{b.kind} at {x}, {y} is wet`)
+			local d, _, kind, half = Geo.nearestRoad(x, y)
+			assert(not kind or d > half + 4, `{b.kind} at {x}, {y} is on a road`)
+			for _, l in b.loot do
+				local r = math.sqrt((l[1] - x) ^ 2 + (l[2] - y) ^ 2)
+				assert(r < math.max(b.size[1], b.size[2]) / 2 + 6, `loot by {b.kind} at {x}, {y}`)
+			end
+		end
+	end,
+	["forests grow on land, not in the lake or on town pads"] = function()
+		assert(Geo.forest(4950, 4950) == 0, "lake")
+		local nc = Data.Nodes.NC
+		assert(Geo.forest(nc[1], nc[2]) == 0, "North City")
+		local any = 0
+		for y = 500, Data.Frame.height, 500 do
+			for x = 500, Data.Frame.width, 500 do
+				any += if Geo.forest(x, y) > 0.5 then 1 else 0
+			end
+		end
+		assert(any > 40, "some forest")
+	end,
 }

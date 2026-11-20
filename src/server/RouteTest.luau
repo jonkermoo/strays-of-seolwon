@@ -1,6 +1,7 @@
 --!strict
 -- Studio-only greybox check: one R6 dummy per planned route walks the built roads at sprint
--- speed and the real times are printed. Runs when the Workspace attribute RouteTest = true.
+-- speed and the real times are printed. Runs when the Workspace attribute RouteTest = true
+-- (RouteTestDirt = true walks the dirt roads and trails instead).
 -- Output: one "ROUTETEST <json>" line per route, then "ROUTETEST DONE".
 -- Times are game time (DistributedGameTime): a background Studio window pauses the game.
 local HttpService = game:GetService("HttpService")
@@ -38,14 +39,14 @@ local function waypoints(pts: { { number } }): { Vector3 }
 	return out
 end
 
-local function walk(from: string, to: string, results: { any })
-	local planLen, pts = Geo.route(from, to)
+local function walk(name: string, pts: { { number } }, results: { any })
+	local planLen = Geo.length(pts)
 	local wps = waypoints(pts)
 	local dummy = Players:CreateHumanoidModelFromDescription(
 		Instance.new("HumanoidDescription"),
 		Enum.HumanoidRigType.R6
 	)
-	dummy.Name = `RouteDummy_{from}_{to}`
+	dummy.Name = `RouteDummy_{name}`
 	for _, d in dummy:GetDescendants() do
 		if d:IsA("BasePart") then
 			d.CollisionGroup = "RouteDummy"
@@ -54,7 +55,7 @@ local function walk(from: string, to: string, results: { any })
 	local hum = dummy:FindFirstChildOfClass("Humanoid") :: Humanoid
 	local root = dummy:FindFirstChild("HumanoidRootPart") :: BasePart
 	hum.WalkSpeed = Metrics.Player.sprint
-	local s = Data.Nodes[from]
+	local s = pts[1]
 	local sX, sZ = Geo.world(s[1], s[2])
 	dummy:PivotTo(CFrame.new(sX, Geo.roadHeight(s[1], s[2]) + 4, sZ))
 	dummy.Parent = workspace
@@ -91,7 +92,7 @@ local function walk(from: string, to: string, results: { any })
 	end
 	local secs = now() - t0
 	local row = {
-		route = `{from}-{to}`,
+		route = name,
 		planLength = math.floor(planLen),
 		planFoot = math.floor(planLen / Data.Speed.foot),
 		walked = math.floor(secs),
@@ -108,23 +109,32 @@ function RouteTest.run()
 	end)
 	PhysicsService:CollisionGroupSetCollidable("RouteDummy", "RouteDummy", false)
 	local results = {}
-	local pairs_ = {}
-	-- Optional Workspace attribute RouteTestOnly = "RT,S1" walks just those routes.
-	local only = workspace:GetAttribute("RouteTestOnly")
-	for _, id in Data.Routes do
-		if type(only) ~= "string" or table.find(string.split(only, ","), id) then
-			table.insert(pairs_, { "HQ1", id })
+	local jobs = {}
+	if workspace:GetAttribute("RouteTestDirt") == true then
+		-- Workspace attribute RouteTestDirt = true walks every dirt road and trail instead.
+		for i, d in Data.Dirt or {} do
+			table.insert(jobs, { `{i} {d.use}`, d.pts })
+		end
+	else
+		-- Optional Workspace attribute RouteTestOnly = "RT,S1" walks just those routes.
+		local only = workspace:GetAttribute("RouteTestOnly")
+		for _, id in Data.Routes do
+			if type(only) ~= "string" or table.find(string.split(only, ","), id) then
+				local _, pts = Geo.route("HQ1", id)
+				table.insert(jobs, { `HQ1-{id}`, pts })
+			end
+		end
+		if type(only) ~= "string" then
+			local _, pts = Geo.route("HQ2", "S3")
+			table.insert(jobs, { "HQ2-S3", pts })
 		end
 	end
-	if type(only) ~= "string" then
-		table.insert(pairs_, { "HQ2", "S3" })
-	end
-	local left = #pairs_
-	for _, p in pairs_ do
+	local left = #jobs
+	for _, j in jobs do
 		task.spawn(function()
-			local ok, err = pcall(walk, p[1], p[2], results)
+			local ok, err = pcall(walk, j[1], j[2], results)
 			if not ok then
-				print(`ROUTETEST ERROR {p[1]}-{p[2]} {err}`)
+				print(`ROUTETEST ERROR {j[1]} {err}`)
 			end
 			left -= 1
 		end)

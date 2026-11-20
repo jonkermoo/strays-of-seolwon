@@ -8,7 +8,7 @@
 -- cj0, cj1; nil = all) and `clear` (wipe and refill the sea first).
 -- It reads Data and Geo from the synced ReplicatedStorage.Shared.Map, so Studio and Lune build
 -- the same ground. Rock below a surface band of voxels; materials by slope, height, season and
--- roads; sea / lake / river water. Map (x, y) -> world X = x - W/2, Z = y - H/2 (Geo.world).
+-- roads; forest floors; sea / lake / river water. Map (x, y) -> world X = x - W/2, Z = y - H/2 (Geo.world).
 
 return function(CI0: number?, CI1: number?, CJ0: number?, CJ1: number?, clear: boolean?)
 	local Map = game:GetService("ReplicatedStorage").Shared.Map
@@ -71,6 +71,14 @@ return function(CI0: number?, CI1: number?, CJ0: number?, CJ1: number?, clear: b
 		end
 		local z = Geo.zone(x, y)
 		local n = math.noise(x / 140, y / 140, 7.7)
+		if Geo.forest(x, y) > 0.55 then
+			-- forest floor: leaf litter in sector B, needle-bare patches under the snow
+			if z == "autumn" then
+				return if n > 0.25 then M.Ground else M.LeafyGrass
+			elseif n > 0.05 then
+				return M.Ground
+			end
+		end
 		if z == "autumn" then
 			if n > 0.42 then
 				return M.Ground -- harvested fields
