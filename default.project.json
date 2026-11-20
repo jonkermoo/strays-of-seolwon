@@ -26,6 +26,18 @@
       "$className": "Workspace",
       "Greybox": {
         "$path": "assets/Greybox.rbxm"
+      },
+      "StyleTest": {
+        "$path": "assets/StyleTest.rbxm"
+      }
+    },
+    "Lighting": {
+      "$className": "Lighting",
+      "$properties": {
+        "Technology": "Future"
+      },
+      "OvercastSky": {
+        "$path": "assets/StyleSky.rbxm"
       }
     }
   }

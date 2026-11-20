@@ -1,0 +1,638 @@
+{
+ "shirt_strays.png": {
+  "id": "138442967594364",
+  "state": "Approved"
+ },
+ "pants_strays.png": {
+  "id": "99681608566663",
+  "state": "Approved"
+ },
+ "shirt_seori.png": {
+  "id": "94475056505251",
+  "state": "Approved"
+ },
+ "pants_seori.png": {
+  "id": "134956756335880",
+  "state": "Approved"
+ },
+ "sabres.png": {
+  "id": "89403306616833",
+  "state": "Approved"
+ },
+ "strays_col_11187819025.png": {
+  "id": "81833245128431",
+  "state": "Approved"
+ },
+ "strays_col_11621748254.png": {
+  "id": "139405386765742",
+  "state": "Approved"
+ },
+ "strays_col_11663468590.png": {
+  "id": "72782689653714",
+  "state": "Approved"
+ },
+ "strays_col_11663469770.png": {
+  "id": "77466808302105",
+  "state": "Approved"
+ },
+ "strays_col_11663470123.png": {
+  "id": "84644409278811",
+  "state": "Approved"
+ },
+ "strays_col_11663471029.png": {
+  "id": "89272348660224",
+  "state": "Approved"
+ },
+ "strays_col_11663471377.png": {
+  "id": "129781774611163",
+  "state": "Approved"
+ },
+ "strays_col_12617765533.png": {
+  "id": "132911686319158",
+  "state": "Approved"
+ },
+ "strays_col_12625413364.png": {
+  "id": "81840372138910",
+  "state": "Approved"
+ },
+ "strays_col_3297097809.png": {
+  "id": "86374345508544",
+  "state": "Approved"
+ },
+ "strays_col_5395360317.png": {
+  "id": "70827808031680",
+  "state": "Archived (brand mark: GARMIN)"
+ },
+ "strays_col_5601844020.png": {
+  "id": "135766247007546",
+  "state": "Approved"
+ },
+ "strays_col_5652027133.png": {
+  "id": "109057534209999",
+  "state": "Approved"
+ },
+ "strays_col_5975874736.png": {
+  "id": "109537494492585",
+  "state": "Approved"
+ },
+ "strays_col_6047777570.png": {
+  "id": "91776218155238",
+  "state": "Approved"
+ },
+ "strays_col_6660297479.png": {
+  "id": "85181611318759",
+  "state": "Approved"
+ },
+ "strays_col_6742644102.png": {
+  "id": "89765976506418",
+  "state": "Archived (small US flag, medical cross)"
+ },
+ "strays_col_6742648156.png": {
+  "id": "77208486790947",
+  "state": "Archived (LIBERATOR III labels)"
+ },
+ "strays_col_6837105097.png": {
+  "id": "71119211278457",
+  "state": "Approved"
+ },
+ "strays_col_6837153811.png": {
+  "id": "89808779341489",
+  "state": "Approved"
+ },
+ "strays_col_6960628610.png": {
+  "id": "103267831506758",
+  "state": "Approved"
+ },
+ "strays_col_7144226769.png": {
+  "id": "136112448998083",
+  "state": "Archived (HARRIS logo, labels, QR-like code)"
+ },
+ "strays_col_7217192658.png": {
+  "id": "87773750913578",
+  "state": "Archived (printed numerals)"
+ },
+ "strays_col_7288116112.png": {
+  "id": "80322507866916",
+  "state": "Approved"
+ },
+ "strays_col_7322793402.png": {
+  "id": "122678413189761",
+  "state": "Approved"
+ },
+ "strays_col_8316085147.png": {
+  "id": "105035563188668",
+  "state": "Approved"
+ },
+ "strays_col_9070101990.png": {
+  "id": "105796957568597",
+  "state": "Approved"
+ },
+ "seori_col_10028693494.png": {
+  "id": "120951393063114",
+  "state": "Archived (superseded by cleaned Seori set; some carried text)"
+ },
+ "seori_col_10105062878.png": {
+  "id": "120121002982094",
+  "state": "Archived (superseded by cleaned Seori set; some carried text)"
+ },
+ "seori_col_10109374439.png": {
+  "id": "132813718872100",
+  "state": "Archived (superseded by cleaned Seori set; some carried text)"
+ },
+ "seori_col_10466839842.png": {
+  "id": "119781906430423",
+  "state": "Archived (superseded by cleaned Seori set; some carried text)"
+ },
+ "seori_col_10475893756.png": {
+  "id": "136830136673990",
+  "state": "Archived (superseded by cleaned Seori set; some carried text)"
+ },
+ "seori_col_10480206705.png": {
+  "id": "120867821344803",
+  "state": "Archived (superseded by cleaned Seori set; some carried text)"
+ },
+ "seori_col_10480390195.png": {
+  "id": "134555316767661",
+  "state": "Archived (superseded by cleaned Seori set; some carried text)"
+ },
+ "seori_col_10518585453.png": {
+  "id": "82245039431530",
+  "state": "Archived (superseded by cleaned Seori set; some carried text)"
+ },
+ "seori_col_10524288867.png": {
+  "id": "122757491081157",
+  "state": "Archived (superseded by cleaned Seori set; some carried text)"
+ },
+ "seori_col_4857524182.png": {
+  "id": "139598352736261",
+  "state": "Archived (superseded by cleaned Seori set; some carried text)"
+ },
+ "seori_col_5468028865.png": {
+  "id": "100345595454405",
+  "state": "Archived (superseded by cleaned Seori set; some carried text)"
+ },
+ "seori_col_7589552886.png": {
+  "id": "82795653874224",
+  "state": "Archived (KKM text; superseded)"
+ },
+ "seori_col_7835748582.png": {
+  "id": "117126359719118",
+  "state": "Archived (superseded by cleaned Seori set; some carried text)"
+ },
+ "seori_col_7935701774.png": {
+  "id": "133245334315814",
+  "state": "Archived (superseded by cleaned Seori set; some carried text)"
+ },
+ "seori_col_7940783431.png": {
+  "id": "126277140932227",
+  "state": "Archived (superseded by cleaned Seori set; some carried text)"
+ },
+ "seori_col_7940788145.png": {
+  "id": "118389406319341",
+  "state": "Archived (superseded by cleaned Seori set; some carried text)"
+ },
+ "seori_col_8058816028.png": {
+  "id": "72404033445525",
+  "state": "Archived (superseded by cleaned Seori set; some carried text)"
+ },
+ "seori_col_8058941386.png": {
+  "id": "136312054510102",
+  "state": "Archived (superseded by cleaned Seori set; some carried text)"
+ },
+ "seori_col_8221944361.png": {
+  "id": "84792744016445",
+  "state": "Archived (superseded by cleaned Seori set; some carried text)"
+ },
+ "seori_col_8306522442.png": {
+  "id": "124469502403470",
+  "state": "Archived (superseded by cleaned Seori set; some carried text)"
+ },
+ "seori_col_8306527492.png": {
+  "id": "111949060699638",
+  "state": "Archived (brand mark: THALES)"
+ },
+ "seori_col_8306532285.png": {
+  "id": "90404313246087",
+  "state": "Archived (superseded by cleaned Seori set; some carried text)"
+ },
+ "seori_col_8306536387.png": {
+  "id": "121594499630375",
+  "state": "Archived (superseded by cleaned Seori set; some carried text)"
+ },
+ "seori_clean_col_10028693494.png": {
+  "id": "91774337688770",
+  "state": "Approved"
+ },
+ "seori_clean_col_10105062878.png": {
+  "id": "128940336859725",
+  "state": "Approved"
+ },
+ "seori_clean_col_10109374439.png": {
+  "id": "131429657770406",
+  "state": "Approved"
+ },
+ "seori_clean_col_10466839842.png": {
+  "id": "121130002069162",
+  "state": "Approved"
+ },
+ "seori_clean_col_10475893756.png": {
+  "id": "81998801899068",
+  "state": "Approved"
+ },
+ "seori_clean_col_10480206705.png": {
+  "id": "87757402230087",
+  "state": "Approved"
+ },
+ "seori_clean_col_10480390195.png": {
+  "id": "93824485956403",
+  "state": "Approved"
+ },
+ "seori_clean_col_10518585453.png": {
+  "id": "73775525851836",
+  "state": "Approved"
+ },
+ "seori_clean_col_10524288867.png": {
+  "id": "81350459937188",
+  "state": "Approved"
+ },
+ "seori_clean_col_4857524182.png": {
+  "id": "107552940536464",
+  "state": "Approved"
+ },
+ "seori_clean_col_5468028865.png": {
+  "id": "73055591757810",
+  "state": "Approved"
+ },
+ "seori_clean_col_7835748582.png": {
+  "id": "108579602664448",
+  "state": "Approved"
+ },
+ "seori_clean_col_7935701774.png": {
+  "id": "115631157664141",
+  "state": "Approved"
+ },
+ "seori_clean_col_7940783431.png": {
+  "id": "111315926162029",
+  "state": "Approved"
+ },
+ "seori_clean_col_7940788145.png": {
+  "id": "72231948142103",
+  "state": "Approved"
+ },
+ "seori_clean_col_8058816028.png": {
+  "id": "128725824382860",
+  "state": "Approved"
+ },
+ "seori_clean_col_8058941386.png": {
+  "id": "116871289592816",
+  "state": "Approved"
+ },
+ "seori_clean_col_8221944361.png": {
+  "id": "127317229444943",
+  "state": "Approved"
+ },
+ "seori_clean_col_8306522442.png": {
+  "id": "90049014057129",
+  "state": "Approved"
+ },
+ "seori_clean_col_8306532285.png": {
+  "id": "72723120969228",
+  "state": "Approved"
+ },
+ "seori_clean_col_8306536387.png": {
+  "id": "132165778143515",
+  "state": "Approved"
+ },
+ "seori_clean_col_8306540011.png": {
+  "id": "136420681546726",
+  "state": "Approved"
+ },
+ "seori_clean_col_8306543531.png": {
+  "id": "134942213821180",
+  "state": "Approved"
+ },
+ "seori_clean_col_8418783514.png": {
+  "id": "104891910732265",
+  "state": "Approved"
+ },
+ "seori_clean_col_8642312741.png": {
+  "id": "117222837175063",
+  "state": "Approved"
+ },
+ "seori_clean_col_8875644273.png": {
+  "id": "110975865747181",
+  "state": "Approved"
+ },
+ "seori_clean_col_8964697481.png": {
+  "id": "84961518093854",
+  "state": "Approved"
+ },
+ "seori_clean_col_9070100448.png": {
+  "id": "97104845405991",
+  "state": "Approved"
+ },
+ "seori_clean_col_9083795960.png": {
+  "id": "102390383684556",
+  "state": "Approved"
+ },
+ "seori_clean_col_9129268871.png": {
+  "id": "137194817146911",
+  "state": "Approved"
+ },
+ "seori_clean_col_9129273346.png": {
+  "id": "135511248483470",
+  "state": "Approved"
+ },
+ "seori_clean_col_9149975395.png": {
+  "id": "85513440128845",
+  "state": "Approved"
+ },
+ "seori_clean_col_9173239195.png": {
+  "id": "111331605602154",
+  "state": "Approved"
+ },
+ "seori_clean_col_9181148930.png": {
+  "id": "95756253720709",
+  "state": "Approved"
+ },
+ "seori_clean_col_9195874720.png": {
+  "id": "72849957245523",
+  "state": "Approved"
+ },
+ "seori_clean_col_9364768837.png": {
+  "id": "97640641900131",
+  "state": "Approved"
+ },
+ "seori_clean_col_9442378597.png": {
+  "id": "114670414605069",
+  "state": "Approved"
+ },
+ "seori_clean_col_9447681350.png": {
+  "id": "105672934164253",
+  "state": "Approved"
+ },
+ "seori_clean_col_9452699708.png": {
+  "id": "118285227053215",
+  "state": "Approved"
+ },
+ "seori_clean_col_9452738371.png": {
+  "id": "137680114865462",
+  "state": "Approved"
+ },
+ "seori_clean_col_9457009581.png": {
+  "id": "117313546672697",
+  "state": "Approved"
+ },
+ "seori_clean_col_9475575046.png": {
+  "id": "95108132532572",
+  "state": "Approved"
+ },
+ "seori_clean_col_9607489724.png": {
+  "id": "81201700975691",
+  "state": "Approved"
+ },
+ "seori_clean_col_9976975975.png": {
+  "id": "74837156059813",
+  "state": "Approved"
+ },
+ "strays_clean_col_5395360317.png": {
+  "id": "87982994097063",
+  "state": "Approved"
+ },
+ "bunker_Apron_col.png": {
+  "id": "103706648470410",
+  "state": "Approved"
+ },
+ "bunker_Apron_nrm.png": {
+  "id": "109685787591726",
+  "state": "Approved"
+ },
+ "bunker_Apron_rgh.png": {
+  "id": "107997738837110",
+  "state": "Approved"
+ },
+ "bunker_Bag_col.png": {
+  "id": "125956483016513",
+  "state": "Approved"
+ },
+ "bunker_Bag_nrm.png": {
+  "id": "109608213713279",
+  "state": "Approved"
+ },
+ "bunker_Bag_rgh.png": {
+  "id": "86068478797717",
+  "state": "Approved"
+ },
+ "bunker_Bulb_col.png": {
+  "id": "83917435513949",
+  "state": "Approved"
+ },
+ "bunker_Bulb_nrm.png": {
+  "id": "93096938856590",
+  "state": "Approved"
+ },
+ "bunker_Bulb_rgh.png": {
+  "id": "102349476399972",
+  "state": "Approved"
+ },
+ "bunker_Cage_col.png": {
+  "id": "103523980563431",
+  "state": "Approved"
+ },
+ "bunker_Cage_nrm.png": {
+  "id": "104931746374925",
+  "state": "Approved"
+ },
+ "bunker_Cage_rgh.png": {
+  "id": "138076192250460",
+  "state": "Approved"
+ },
+ "bunker_DoorL_col.png": {
+  "id": "131109140660366",
+  "state": "Approved"
+ },
+ "bunker_DoorL_nrm.png": {
+  "id": "111087036418100",
+  "state": "Approved"
+ },
+ "bunker_DoorL_rgh.png": {
+  "id": "120547464399095",
+  "state": "Approved"
+ },
+ "bunker_DoorR_col.png": {
+  "id": "81578921525376",
+  "state": "Approved"
+ },
+ "bunker_DoorR_nrm.png": {
+  "id": "118076990447405",
+  "state": "Approved"
+ },
+ "bunker_DoorR_rgh.png": {
+  "id": "98292730692449",
+  "state": "Approved"
+ },
+ "bunker_Frame_col.png": {
+  "id": "139034473944884",
+  "state": "Approved"
+ },
+ "bunker_Frame_nrm.png": {
+  "id": "98818104866639",
+  "state": "Approved"
+ },
+ "bunker_Frame_rgh.png": {
+  "id": "98787997892361",
+  "state": "Approved"
+ },
+ "bunker_Lip_col.png": {
+  "id": "94908883045407",
+  "state": "Approved"
+ },
+ "bunker_Lip_nrm.png": {
+  "id": "121269282012909",
+  "state": "Approved"
+ },
+ "bunker_Lip_rgh.png": {
+  "id": "125293612475846",
+  "state": "Approved"
+ },
+ "bunker_Portal_col.png": {
+  "id": "93948990973603",
+  "state": "Approved"
+ },
+ "bunker_Portal_nrm.png": {
+  "id": "134388680952499",
+  "state": "Approved"
+ },
+ "bunker_Portal_rgh.png": {
+  "id": "88052130208860",
+  "state": "Approved"
+ },
+ "bunker_Vent_col.png": {
+  "id": "97066375005213",
+  "state": "Approved"
+ },
+ "bunker_Vent_nrm.png": {
+  "id": "94304488264679",
+  "state": "Approved"
+ },
+ "bunker_Vent_rgh.png": {
+  "id": "83225118890116",
+  "state": "Approved"
+ },
+ "bunker_WingL_col.png": {
+  "id": "130898406514641",
+  "state": "Approved"
+ },
+ "bunker_WingL_nrm.png": {
+  "id": "98240221542556",
+  "state": "Approved"
+ },
+ "bunker_WingL_rgh.png": {
+  "id": "71013175734546",
+  "state": "Approved"
+ },
+ "bunker_WingR_col.png": {
+  "id": "124558402528611",
+  "state": "Approved"
+ },
+ "bunker_WingR_nrm.png": {
+  "id": "92313202560278",
+  "state": "Approved"
+ },
+ "bunker_WingR_rgh.png": {
+  "id": "97857714664736",
+  "state": "Approved"
+ },
+ "bunker_v1.fbx": {
+  "id": "122588805426039",
+  "state": "Approved"
+ },
+ "H2_02_Default_col.png": {
+  "id": "112708525054997",
+  "state": "Approved"
+ },
+ "H2_02_Default_mtl.png": {
+  "id": "75367095590056",
+  "state": "Approved"
+ },
+ "H2_02_Default_nrm.png": {
+  "id": "86196338872716",
+  "state": "Approved"
+ },
+ "H2_02_Default_rgh.png": {
+  "id": "102249799123051",
+  "state": "Approved"
+ },
+ "H2_02_up_col.png": {
+  "id": "83810023133437",
+  "state": "Approved"
+ },
+ "H2_02_up_mtl.png": {
+  "id": "126804515738892",
+  "state": "Approved"
+ },
+ "H2_02_up_nrm.png": {
+  "id": "91930686047484",
+  "state": "Approved"
+ },
+ "H2_02_up_rgh.png": {
+  "id": "89600401334536",
+  "state": "Approved"
+ },
+ "H2_03_Default_col.png": {
+  "id": "121151878024731",
+  "state": "Approved"
+ },
+ "H2_03_Default_mtl.png": {
+  "id": "115269596432142",
+  "state": "Approved"
+ },
+ "H2_03_Default_nrm.png": {
+  "id": "139451228257080",
+  "state": "Approved"
+ },
+ "H2_03_Default_rgh.png": {
+  "id": "71937804502135",
+  "state": "Approved"
+ },
+ "H2_07_Default_col.png": {
+  "id": "122147946876937",
+  "state": "Approved"
+ },
+ "H2_07_Default_mtl.png": {
+  "id": "75147078515691",
+  "state": "Approved"
+ },
+ "H2_07_Default_nrm.png": {
+  "id": "84209807478573",
+  "state": "Approved"
+ },
+ "H2_07_Default_rgh.png": {
+  "id": "120878145287798",
+  "state": "Approved"
+ },
+ "H2_09_Default_col.png": {
+  "id": "84276772104868",
+  "state": "Approved"
+ },
+ "H2_09_Default_mtl.png": {
+  "id": "78480450179458",
+  "state": "Approved"
+ },
+ "H2_09_Default_nrm.png": {
+  "id": "105929488847421",
+  "state": "Approved"
+ },
+ "H2_09_Default_rgh.png": {
+  "id": "123671557633563",
+  "state": "Approved"
+ },
+ "h2_v2.fbx": {
+  "id": "119687427381420",
+  "state": "Approved"
+ },
+ "sky_overcast_grey.png": {
+  "id": "129008835715120",
+  "state": "Approved"
+ }
+}

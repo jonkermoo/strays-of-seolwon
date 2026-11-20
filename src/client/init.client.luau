@@ -11,6 +11,7 @@ local DebugUi = require(Shared.DebugUi)
 
 local player = Players.LocalPlayer
 task.spawn(require(script.AdminPanel).start) -- F2 admin panel (Studio / owner only)
+task.spawn(require(script.StyleToggle).start) -- M1 style test: light/weather toggle (keys 1-9)
 local gui = DebugUi.screen(player:WaitForChild("PlayerGui"), "DataDebug")
 
 -- left: player data
