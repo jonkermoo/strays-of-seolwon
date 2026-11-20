@@ -3,22 +3,26 @@
 -- roads, dirt roads and trails (shortest time, so a truck prefers fast roads and a walker the
 -- shortest way), plus an off-road leg from the nearest road to the spot.
 -- Run from the repo root: lune run tools/greybox/times   (prints a Markdown table)
--- Estimates, not driven: no slope, traffic, enemies or stops.
+-- Estimates, not driven: no slope, traffic, enemies or stops. The Citadel (X1) counts its
+-- bridge as repaired. Speeds: Data.Speed. Optional argument: a speed multiplier to try.
 local Data = require("../../src/shared/Map/Data")
 local Geo = require("../../src/shared/Map/Geo")(Data)
 
 type Pt = { number }
 
 local WALK = Data.Speed.foot -- studs/s, sprinting
-local DRIVE = { -- studs/s by surface for a truck
-	artery = Data.Speed.truck,
-	road = Data.Speed.truck,
-	tunnel = Data.Speed.truck,
-	track = 35,
-	dirt = 30,
-	trail = 18,
+local process = require("@lune/process")
+local S = Data.Speed.drive -- studs/s by surface for a truck
+local scale = tonumber(process.args[1]) or 1 -- try faster / slower trucks: lune run ... 1.5
+local DRIVE = {
+	artery = S.paved * scale,
+	road = S.paved * scale,
+	tunnel = S.paved * scale,
+	track = S.track * scale,
+	dirt = S.dirt * scale,
+	trail = S.trail * scale,
 }
-local OFFROAD_DRIVE = 15 -- across open ground from the nearest road
+local OFFROAD_DRIVE = S.offroad * scale -- across open ground from the nearest road
 
 -- graph: vertices every <= 40 studs along every line; shared points merge
 local verts: { Pt } = {}
@@ -56,6 +60,12 @@ local function addLine(pts: { Pt }, speed: number)
 end
 for _, e in Data.Edges do
 	addLine(Geo.edgePoints(e), DRIVE[e.kind])
+end
+-- the Citadel bridge is down at the start; times assume it has been repaired (or bridged)
+for _, p in Data.Places do
+	if p.id == "X1" then
+		addLine({ Data.Nodes.CB, p.pos }, DRIVE.road)
+	end
 end
 local own: { [number]: { [number]: boolean } } = {} -- each dirt line's own vertices
 for i, d in Data.Dirt or {} do
@@ -161,6 +171,7 @@ for _, id in { "HQ1", "HQ2" } do
 	hq[id] = { walk = times(v, true), drive = times(v, false) }
 end
 
+local worst, worstName = 0, ""
 print("| Spot | Cell | HQ 1 walk | HQ 1 drive | HQ 2 walk | HQ 2 drive |")
 print("|---|---|---|---|---|---|")
 for _, p in Data.Places do
@@ -172,7 +183,12 @@ for _, p in Data.Places do
 			local d = hq[id].drive[v] + off / OFFROAD_DRIVE
 			table.insert(row, mmss(w))
 			table.insert(row, mmss(d))
+			if d > worst then
+				worst, worstName = d, `{id} to {p.name}`
+			end
 		end
 		print("| " .. table.concat(row, " | ") .. " |")
 	end
 end
+print("")
+print(`Longest drive: {mmss(worst)} ({worstName})`)

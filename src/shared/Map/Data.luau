@@ -2252,7 +2252,14 @@ Data.Places = {
 }
 
 -- Travel speeds (studs/s) and the routes timed from HQ 1 (plus HQ 2 to s3).
-Data.Speed = { foot = 20, truck = 45 }
+-- Trucks (2026-11-20): every site within 3:00 of either HQ by truck. 80 studs/s on paved roads
+-- is about 80 km/h at 0.28 m/stud, a humvee's cruising speed.
+Data.Speed = {
+	foot = 20,
+	truck = 80, -- planned-route truck speed (paved)
+	-- truck speed by surface (studs/s), for travel-time estimates (tools/greybox/times)
+	drive = { paved = 80, track = 60, dirt = 50, trail = 30, offroad = 25 },
+}
 Data.Routes = {
 	"LT",
 	"COOP",
