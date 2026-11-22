@@ -698,5 +698,33 @@
  "b_7273282794.png": {
   "id": "122861212645369",
   "state": "Approved"
+ },
+ "helm_cover.png": {
+  "id": "84974741182631",
+  "state": "Approved"
+ },
+ "helm_shell.png": {
+  "id": "137708229510920",
+  "state": "Approved"
+ },
+ "helm_rails.png": {
+  "id": "82252340415744",
+  "state": "Approved"
+ },
+ "helm_shroud.png": {
+  "id": "120833620921988",
+  "state": "Approved"
+ },
+ "helm_fitband.png": {
+  "id": "128073181125797",
+  "state": "Approved"
+ },
+ "helm_amp.png": {
+  "id": "99822868274690",
+  "state": "Approved"
+ },
+ "helm_velcro.png": {
+  "id": "109511354350973",
+  "state": "Approved"
  }
 }
