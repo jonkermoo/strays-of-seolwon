@@ -12,6 +12,8 @@ local DebugUi = require(Shared.DebugUi)
 local player = Players.LocalPlayer
 task.spawn(require(script.AdminPanel).start) -- F2 admin panel (Studio / owner only)
 task.spawn(require(script.StyleToggle).start) -- M1 style test: light/weather toggle (keys 1-9)
+task.spawn(require(script.MoveTest).start) -- M2 movement test (keys on screen)
+task.spawn(require(script.Gallery).start) -- M2 clip gallery (a row of soldiers, one clip each)
 local gui = DebugUi.screen(player:WaitForChild("PlayerGui"), "DataDebug")
 
 -- left: player data

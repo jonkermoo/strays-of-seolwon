@@ -15,6 +15,7 @@ end
 
 PlayerData.start()
 CampaignHost.start()
+require(script.StyleCharacter).start() -- M2 movement test: spawn as the Strays rifleman with the block-out rifle
 
 local status = Net.remote("Status")
 local listRows = Net.remote("ListRows")
