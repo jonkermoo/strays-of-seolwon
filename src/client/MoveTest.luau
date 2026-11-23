@@ -4,9 +4,15 @@
 -- block-out rifle, to the approved ANIMATION-GUIDE.md §2-4 (jarvis, 2026-11-22):
 --   WASD walk 12 · Shift sprint 20 · C crouch 7 · Z prone, crawl 3 · Space jump (low hop) / vault / mantle
 --   Q / E lean (live, any cycle) · L limp: none / one leg 8 / both legs 5 · T first / third person
+--   F or right mouse aim (walk 8) · left click or X fire (hip fire unless aiming)
+-- The cycles, holds, stance changes and vaults are baked from the jarvis motion study (v11, approved 2026-11-23;
+-- tools/animation/baked.luau). Carry (study): with nothing happening the rifle rests in the safe carry; firing or
+-- aiming brings it up (0.3 s from safe to the first shot), hip fire holds 0.6 s after the last shot, then low ready,
+-- and after 4 s of rest the safe carry again. Leaning and going prone / getting up count as alert.
 -- The clips aren't uploaded: KeyframeSequenceProvider:RegisterKeyframeSequence (works in Studio only).
 -- Test hooks (Studio MCP, no key mapping): player attribute "M2Cmd" = "crouch" | "prone" | "jump" | "limp" | "camera"
--- | "sprintOn" | "sprintOff" | "leanL" | "leanR" | "leanOff"; "M2Move" (Vector3, world) moves like the stick.
+-- | "sprintOn" | "sprintOff" | "leanL" | "leanR" | "leanOff" | "fire" | "aimOn" | "aimOff"; "M2Move" (Vector3,
+-- world) moves like the stick.
 -- Each frame the character carries "M2State" (JSON: stance, speed, clips, camera offset) for checks by numbers.
 local ContextActionService = game:GetService("ContextActionService")
 local HttpService = game:GetService("HttpService")
@@ -16,15 +22,41 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
+local MotionPaths = require(
+	ReplicatedStorage:WaitForChild("Shared"):WaitForChild("StyleTest"):WaitForChild("MotionPaths")
+)
+
 local MoveTest = {}
 
 local player = Players.LocalPlayer
 
 -- ANIMATION-GUIDE §2 speeds (studs/s)
-local SPEED = { walk = 12, sprint = 20, crouch = 7, prone = 3, lean = 7, limp1 = 8, limp2 = 5 }
+local SPEED =
+	{ walk = 12, sprint = 20, crouch = 7, prone = 3, lean = 7, limp1 = 8, limp2 = 5, aim = 8 }
 -- each body loop's speed at its keyed length (the playback rate scales with the real speed)
-local NOMINAL =
-	{ Walk = 12, Sprint = 20, CrouchWalk = 7, Crawl = 3, LimpOne = 8, LimpBoth = 5, Swim = 12 }
+local NOMINAL = {
+	Walk = 12,
+	Sprint = 20,
+	CrouchWalk = 7,
+	Crawl = 3,
+	LimpOne = 8,
+	LimpBoth = 5,
+	Swim = 12,
+	AimWalk = 8,
+	AimCrouchWalk = 7,
+}
+-- carry (motion study): rest delay, raise / lower smoothing, hip-fire hold, aim tween, recoil
+local CARRY = {
+	rest = 4,
+	raise = 0.1,
+	lower = 0.32,
+	hipIn = 0.05,
+	hipOut = 0.14,
+	hipHold = 0.6,
+	aimUp = 0.2,
+	aimDown = 0.18,
+}
+local FIRE = { gap = 0.1, kick = 9, flash = 0.05 }
 local SPRINT_CONE = math.cos(math.rad(50)) -- sprint only within 50 deg of the camera look
 local BLEND = 0.13 -- §3.11 0.12-0.15
 local LEAN = { tilt = 20, inTime = 0.15, outTime = 0.12, roll = 8 } -- §3.8 (+ 1P camera roll, approved proposal)
@@ -34,15 +66,32 @@ local VAULT = { hop = 3.5, mantle = 5.5, reach = 2.2, hopTime = 0.45, mantleTime
 local LONG_FALL = 10 -- §3.6
 local VIEW_LIFT = Vector3.new(0, 0.6, -0.6) -- 1P: the body rides up and forward (root space) so the rifle shows
 local VIEW_LIFT_CROUCH = Vector3.new(0, 1.1, -0.6)
--- stance changes (§3.4 / §3.5): clip and seconds
+-- stance changes (§3.4 / §3.5; timing from the motion study, the clip's own length): clip
 local CHANGE = {
-	stand_crouch = { "StandToCrouch", 0.2 },
-	crouch_stand = { "CrouchToStand", 0.2 },
-	stand_prone = { "StandToProne", 0.45 },
-	prone_stand = { "ProneToStand", 0.55 },
-	crouch_prone = { "CrouchToProne", 0.35 },
-	prone_crouch = { "ProneToCrouch", 0.35 },
+	stand_crouch = "StandToCrouch",
+	crouch_stand = "CrouchToStand",
+	stand_prone = "StandToProne",
+	prone_stand = "ProneToStand",
+	crouch_prone = "CrouchToProne",
+	prone_crouch = "ProneToCrouch",
 }
+-- a critically damped follow (the study's damp): x, velocity -> new x, new velocity
+local function damp(x: number, v: number, target: number, T: number, dt: number): (number, number)
+	local w = 2 / T
+	local k = w * dt
+	local e = 1 / (1 + k + 0.48 * k * k + 0.235 * k * k * k)
+	local ch = x - target
+	local tmp = (v + w * ch) * dt
+	return target + (ch + tmp) * e, (v - w * tmp) * e
+end
+-- slow multi-sine noise (-1..1), as the study's life layer
+local function noise(t: number, k: number): number
+	return (
+		math.sin(t * 1.13 + k)
+		+ 0.7 * math.sin(t * 0.71 + 2.1 * k)
+		+ 0.4 * math.sin(t * 2.37 + 0.6 * k)
+	) / 2.1
+end
 -- the R6 joints' C0 rotations (tools/animation/build.luau JOINTS)
 local C0 = {
 	root = CFrame.new(0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 1, 0),
@@ -77,6 +126,8 @@ type Rig = {
 	rootJoint: Motor6D,
 	rightHip: Motor6D,
 	leftHip: Motor6D,
+	neck: Motor6D?,
+	gun: Motor6D?,
 	tracks: { [string]: AnimationTrack },
 }
 
@@ -110,6 +161,8 @@ local function loadRig(char: Model): Rig?
 		rootJoint = root:WaitForChild("RootJoint") :: Motor6D,
 		rightHip = torso:WaitForChild("Right Hip") :: Motor6D,
 		leftHip = torso:WaitForChild("Left Hip") :: Motor6D,
+		neck = torso:FindFirstChild("Neck") :: Motor6D?,
+		gun = torso:WaitForChild("Gun", 5) :: Motor6D?,
 		tracks = tracks,
 	}
 end
@@ -172,6 +225,26 @@ function MoveTest.start()
 	local sprintStopAt = 0
 	local dip = { t0 = 0, len = 0, depth = 0 }
 	local camOffset = Vector3.zero
+	-- carry state (motion study): ready 0 safe .. 1 up, hip, aim; shots queued; recoil spring
+	local carry = {
+		alertT = 99,
+		ready = 0,
+		readyV = 0,
+		hip = 0,
+		hipV = 0,
+		hipT = 99,
+		aimIn = false,
+		aimLin = 0,
+		aim = 0,
+		shots = 0,
+		shotT = 0,
+		rec = 0,
+		recV = 0,
+		flash = 0,
+		fired = 0,
+	}
+	local holdW: { [string]: number } = {} -- the hold layers playing and their weights
+	local life = 0
 	local stanceY = { stand = 0, crouch = -1.25, prone = -2.55 }
 	local bobPhase = 0
 	local lagYaw, lagPitch = 0, 0
@@ -229,8 +302,9 @@ function MoveTest.start()
 		local change = CHANGE[stance .. "_" .. to]
 		stance = to
 		if change then
-			play(change[1])
-			busyUntil = os.clock() + change[2] * 0.6 -- the settle can be cut (approved proposal)
+			play(change)
+			local t = track(change)
+			busyUntil = os.clock() + (if t then t.Length else 0.3) * 0.6 -- the settle can be cut (approved proposal)
 		end
 	end
 
@@ -305,43 +379,53 @@ function MoveTest.start()
 			return false -- no room to stand up there
 		end
 		local hop = h <= VAULT.hop and headroom > 4
-		local len = if hop then VAULT.hopTime else VAULT.mantleTime
-		local topY = top.Position.Y
-		-- the root's height over the top while crossing: standing height, or as low as a window allows
-		local cross = math.min(3, math.max(1.8, headroom - 2.1))
+		-- the baked clip and its root path (motion study): the lift scaled to this ledge's height, the forward path as
+		-- baked (the body clears the top as in the study), the difference between this face distance and the baked one
+		-- taken up over the first 40%, and the landing floor found where the path ends
+		local clip = if hop then "VaultHop" elseif onto then "Mantle" else "MantleWindow"
+		local bake = MotionPaths[clip]
+		local path = bake.path
+		local n = #path
+		local len = (n - 1) / bake.fps
+		local ky = h / bake.height
+		local shift = (face - p0.Position):Dot(dir) - bake.trigger
+		local endPos = p0.Position + dir * (path[n][2] + shift)
+		local floorY = land.Y
+		if not onto then
+			local below =
+				ray(Vector3.new(endPos.X, top.Position.Y + 1, endPos.Z), Vector3.new(0, -12, 0))
+			floorY = (if below then below.Position.Y else g) + 3
+		end
+		local dropY = floorY - (p0.Position.Y + path[n][1] * ky) -- a lower or higher floor past the obstacle
 		vaulting = true
 		busyUntil = os.clock() + len
 		r.Anchored = true
-		play(if hop then "VaultHop" else "Mantle")
+		play(clip, 0.05)
 		local rot = p0 - p0.Position
 		local t0 = os.clock()
 		local conn: RBXScriptConnection
 		conn = RunService.Heartbeat:Connect(function()
-			local u = math.clamp((os.clock() - t0) / len, 0, 1)
-			local pos: Vector3
-			if hop then
-				-- one arc over the wall, its top with the root 2.0 over the wall (the tucked legs clear it)
-				local apex = topY + 2.0
-				local mid = p0.Position:Lerp(land, 0.5)
-				local c = Vector3.new(mid.X, 2 * apex - 0.5 * (p0.Position.Y + land.Y), mid.Z)
-				pos = p0.Position:Lerp(c, u):Lerp(c:Lerp(land, u), u)
-			else
-				-- up first (0.08-0.55), then forward onto / through (0.55-0.75)
-				local up = math.clamp((u - 0.08) / 0.47, 0, 1)
-				local fwd = math.clamp((u - 0.5) / 0.25, 0, 1)
-				up = up * up * (3 - 2 * up)
-				fwd = fwd * fwd * (3 - 2 * fwd)
-				local peak = if onto then land.Y else topY + cross
-				local down = math.clamp((u - 0.75) / 0.25, 0, 1) -- through a window: drop to the landing at the end
-				local y = p0.Position.Y
-					+ (peak - p0.Position.Y) * up
-					+ (land.Y - peak) * down * down
-				local xz = p0.Position:Lerp(land, fwd * 0.999)
-				pos = Vector3.new(xz.X, y, xz.Z)
-			end
+			local t = os.clock() - t0
+			local f = math.clamp(t * bake.fps, 0, n - 1)
+			local a = math.floor(f)
+			local b = math.min(a + 1, n - 1)
+			local u = f - a
+			local lift = path[a + 1][1] + (path[b + 1][1] - path[a + 1][1]) * u
+			local fwd = path[a + 1][2] + (path[b + 1][2] - path[a + 1][2]) * u
+			local s0 = math.clamp(t / (0.4 * len), 0, 1)
+			local e0 = math.clamp((t / len - 0.6) / 0.4, 0, 1)
+			-- the hop clears the wall with a little margin (the Studio body stands ~0.1 lower than the study's, and
+			-- ground isn't flat): +0.4 over the middle of the clip
+			local margin = if hop
+				then 0.4 * math.sin(math.pi * math.clamp(t / (0.8 * len), 0, 1))
+				else 0
+			local pos = p0.Position
+				+ dir * (fwd + shift * s0 * s0 * (3 - 2 * s0))
+				+ Vector3.new(0, lift * ky + dropY * e0 * e0 + margin, 0)
 			r.CFrame = rot + pos
-			if u >= 1 then
+			if t >= len then
 				conn:Disconnect()
+				r.CFrame = rot + Vector3.new(endPos.X, floorY, endPos.Z)
 				r.Anchored = false
 				r.AssemblyLinearVelocity = dir * (if hop then SPEED.walk else 0)
 				vaulting = false
@@ -396,6 +480,18 @@ function MoveTest.start()
 			leanIn = 1
 		elseif name == "leanOff" then
 			leanIn = 0
+		elseif name == "fire" then
+			if not rig or vaulting then
+				return
+			end
+			carry.shots += 1
+			carry.alertT = 0
+		elseif name == "aimOn" then
+			carry.aimIn = true
+		elseif name == "aimOff" then
+			carry.aimIn = false
+		elseif name == "aimToggle" then
+			carry.aimIn = not carry.aimIn
 		end
 	end
 	ContextActionService:BindActionAtPriority("M2Jump", function(_, state)
@@ -423,10 +519,19 @@ function MoveTest.start()
 			cmd("limp")
 		elseif k == Enum.KeyCode.T then
 			cmd("camera")
+		elseif k == Enum.KeyCode.F then
+			cmd("aimToggle")
+		elseif k == Enum.KeyCode.X or input.UserInputType == Enum.UserInputType.MouseButton1 then
+			cmd("fire")
+		elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+			cmd("aimOn")
 		end
 	end)
 	UserInputService.InputEnded:Connect(function(input)
 		local k = input.KeyCode
+		if input.UserInputType == Enum.UserInputType.MouseButton2 then
+			cmd("aimOff")
+		end
 		if k == Enum.KeyCode.LeftShift then
 			cmd("sprintOff")
 		elseif (k == Enum.KeyCode.Q and leanIn < 0) or (k == Enum.KeyCode.E and leanIn > 0) then
@@ -519,12 +624,15 @@ function MoveTest.start()
 		local forward = moving
 			and flatLook.Magnitude > 0
 			and hum.MoveDirection:Dot(flatLook.Unit) > SPRINT_CONE
+		local aimOn = carry.aimIn and not swimming and not vaulting
 		local sprinting = sprintHeld
 			and moving
 			and forward
 			and limp == 0
 			and not air
 			and not swimming
+			and not aimOn
+			and carry.shots == 0
 		if sprinting and stance == "crouch" then
 			setStance("stand")
 		end
@@ -560,6 +668,64 @@ function MoveTest.start()
 		if math.abs(leanA) > 0.3 then
 			ws = math.min(ws, SPEED.lean)
 		end
+		if aimOn and stance == "stand" then
+			ws = math.min(ws, SPEED.aim)
+		end
+
+		-- carry (motion study): alert while aiming, firing, peeking or going prone / getting up; ready rises in ~0.3 s
+		-- from the safe carry, lowers after CARRY.rest s of rest; hip fire holds after the last shot
+		life += dt
+		if
+			aimOn
+			or leanIn ~= 0
+			or stance == "prone"
+			or (oneShot and string.find(oneShotName, "Prone"))
+		then
+			carry.alertT = 0
+		else
+			carry.alertT += dt
+		end
+		local alert = carry.alertT < CARRY.rest or carry.shots > 0
+		carry.ready, carry.readyV = damp(
+			carry.ready,
+			carry.readyV,
+			if alert then 1 else 0,
+			if alert then CARRY.raise else CARRY.lower,
+			dt
+		)
+		carry.aimLin = math.clamp(
+			carry.aimLin + (if aimOn then dt / CARRY.aimUp else -dt / CARRY.aimDown),
+			0,
+			1
+		)
+		local a = carry.aimLin
+		carry.aim = a * a * a * (a * (a * 6 - 15) + 10)
+		carry.hipT += dt
+		local hipOn = not aimOn and (carry.shots > 0 or carry.hipT < CARRY.hipHold)
+		carry.hip, carry.hipV = damp(
+			carry.hip,
+			carry.hipV,
+			if hipOn then 1 else 0,
+			if hipOn then CARRY.hipIn else CARRY.hipOut,
+			dt
+		)
+		carry.shotT -= dt
+		local upNow = carry.ready > 0.97
+			and (carry.aim > 0.9 or carry.hip > 0.97 or stance == "prone")
+		if carry.shots > 0 and upNow and carry.shotT <= 0 and not vaulting then
+			carry.shots -= 1
+			carry.shotT = FIRE.gap
+			carry.recV += FIRE.kick
+			carry.flash = FIRE.flash
+			carry.fired += 1
+			carry.alertT = 0
+			if not aimOn then
+				carry.hipT = 0
+			end
+		end
+		if vaulting or swimming then
+			carry.shots = 0
+		end
 		hum.WalkSpeed = ws
 
 		-- sprint accents (§3.3)
@@ -577,30 +743,41 @@ function MoveTest.start()
 		end
 		wasSprinting = sprinting
 
-		-- loops
+		-- loops: the body cycle, and its hold family (low ready / safe / hip / aim, weighted by the carry)
 		local body, hold
+		local family: string? = nil -- "Idle" | "Walk" | "Crouch" | "CrouchWalk"
 		local walkingNow = moving and speed > 0.5
+		local aimBody = carry.aim > 0.5
 		if swimming then
 			body, hold = if walkingNow then "Swim" else "Tread", nil
 		elseif air then
-			body, hold = "Fall", "HoldIdle"
+			body, hold, family = "Fall", "HoldIdle", "Idle"
 		elseif stance == "prone" then
-			body, hold =
-				if walkingNow then "Crawl" else "ProneIdle",
-				if walkingNow then "HoldCrawl" else "HoldProne"
+			if walkingNow then
+				body, hold = "Crawl", "HoldCrawl"
+			else
+				body = if aimBody then "AimProneIdle" else "ProneIdle"
+				hold = if aimBody then "AimHoldProne" else "HoldProne"
+			end
 		elseif stance == "crouch" then
-			body, hold =
-				if walkingNow then "CrouchWalk" else "CrouchIdle",
-				if walkingNow then "HoldCrouchWalk" else "HoldCrouch"
+			body = if walkingNow
+				then (if aimBody then "AimCrouchWalk" else "CrouchWalk")
+				else (if aimBody then "AimCrouchIdle" else "CrouchIdle")
+			hold = if walkingNow then "HoldCrouchWalk" else "HoldCrouch"
+			family = if walkingNow then "CrouchWalk" else "Crouch"
 		elseif walkingNow then
 			if sprinting then
 				body, hold = "Sprint", "HoldSprint"
 			else
-				body = if limp == 1 then "LimpOne" elseif limp == 2 then "LimpBoth" else "Walk"
-				hold = "HoldWalk"
+				body = if limp == 1
+					then "LimpOne"
+					elseif limp == 2 then "LimpBoth"
+					elseif aimBody then "AimWalk"
+					else "Walk"
+				hold, family = "HoldWalk", "Walk"
 			end
 		else
-			body, hold = "Idle", "HoldIdle"
+			body, hold, family = if aimBody then "AimIdle" else "Idle", "HoldIdle", "Idle"
 		end
 		if st == Enum.HumanoidStateType.Jumping and slots.body ~= "Jump" then
 			setSlot("body", "Jump", 0.05)
@@ -612,16 +789,60 @@ function MoveTest.start()
 			end
 		end
 		setSlot("body", body)
-		setSlot("hold", hold)
-		-- playback rate follows the real speed; moving holds stay in phase with the body
+		-- holds: the family's carries blended by weight (same priority), each kept in phase with the body
+		local want: { [string]: number } = {}
+		if family then
+			local aimW = carry.aim
+			local up = carry.ready * (1 - aimW)
+			local holdName = ({
+				Idle = "HoldIdle",
+				Walk = "HoldWalk",
+				Crouch = "HoldCrouch",
+				CrouchWalk = "HoldCrouchWalk",
+			})[family]
+			want[holdName] = up * (1 - carry.hip)
+			want["Safe" .. family] = (1 - carry.ready) * (1 - aimW)
+			want["Hip" .. family] = up * carry.hip
+			want["AimHold" .. family] = aimW
+			hold = if aimW > 0.5
+				then "AimHold" .. family
+				elseif carry.ready < 0.5 then "Safe" .. family
+				elseif carry.hip > 0.5 then "Hip" .. family
+				else holdName
+		elseif hold then
+			want[hold] = 1
+			if stance == "prone" and not walkingNow then
+				want.HoldProne, want.AimHoldProne = 1 - carry.aim, carry.aim
+			end
+		end
+		slots.hold = hold
 		local bt = slots.body and track(slots.body :: string)
 		if bt and NOMINAL[slots.body :: string] then
 			bt:AdjustSpeed(math.clamp(speed / NOMINAL[slots.body :: string], 0.4, 1.6))
 		end
-		local ht = slots.hold and track(slots.hold :: string)
-		if bt and ht and bt.Length > 0 and ht.Length > 0 and bt.Looped and ht.Looped then
-			ht.TimePosition = (bt.TimePosition / bt.Length) * ht.Length
+		for name, w in want do
+			local t = track(name)
+			if t then
+				if not t.IsPlaying and w > 0.01 then
+					t:Play(BLEND, math.max(w, 0.01))
+				end
+				if t.IsPlaying then
+					t:AdjustWeight(math.max(w, 0.001), 0.05)
+				end
+				if bt and bt.Length > 0 and t.Length > 0 and bt.Looped and t.Looped then
+					t.TimePosition = (bt.TimePosition / bt.Length) * t.Length
+				end
+			end
 		end
+		for name in holdW do
+			if not want[name] then
+				local t = track(name)
+				if t then
+					t:Stop(BLEND)
+				end
+			end
+		end
+		holdW = want
 		if oneShot and not oneShot.IsPlaying then
 			oneShot, oneShotName = nil, ""
 		end
@@ -647,6 +868,13 @@ function MoveTest.start()
 				stance = stance,
 				body = slots.body,
 				hold = slots.hold,
+				carry = {
+					ready = math.floor(carry.ready * 100 + 0.5) / 100,
+					hip = math.floor(carry.hip * 100 + 0.5) / 100,
+					aim = math.floor(carry.aim * 100 + 0.5) / 100,
+					shots = carry.shots,
+					fired = carry.fired,
+				},
 				oneShot = oneShotName,
 				last = lastPlay,
 				speed = math.floor(speed * 10 + 0.5) / 10,
@@ -659,7 +887,7 @@ function MoveTest.start()
 			})
 		)
 		label.Text = string.format(
-			" WASD move · Shift sprint · C crouch · Z prone · Space jump/vault · Q/E lean · L limp · T camera\n %s %s | %s + %s %s | %.1f studs/s | limp %s | %s",
+			" WASD move · Shift sprint · C crouch · Z prone · Space jump/vault · Q/E lean · F/RMB aim · click fire · L limp · T camera\n %s %s | %s + %s %s | %.1f studs/s | limp %s | %s",
 			stance,
 			if sprinting then "(sprint)" else "",
 			tostring(slots.body),
@@ -683,6 +911,45 @@ function MoveTest.start()
 			r.hum:Move(hookMove :: Vector3, false)
 		end
 		MoveTest.applyLean(r, leanA)
+		-- live layer (the study's noise, left out of the baked loops): a slow trunk drift and a head glance when not
+		-- aiming, so no two cycles look the same
+		local calm = 1 - 0.65 * carry.aim
+		local drift = CFrame.Angles(
+			math.rad(1.2 * noise(life, 4.2) * calm),
+			math.rad(2 * noise(life, 5.3) * calm),
+			0
+		)
+		r.rootJoint.Transform = inJoint(C0.root, drift) * r.rootJoint.Transform
+		if r.neck and stance ~= "prone" then
+			local glance = (4 * noise(life, 8.8) + 1.5 * noise(life, 12.1)) * (1 - carry.aim)
+			r.neck.Transform = r.neck.Transform * CFrame.Angles(0, 0, math.rad(glance))
+		end
+		-- recoil: a spring kicked by each shot; the rifle goes back into the shoulder and the muzzle climbs, the
+		-- upper body rocks back a little with it
+		carry.recV += (-2 * 0.5 * (2 * math.pi * 6) * carry.recV - (2 * math.pi * 6) ^ 2 * carry.rec) * dt
+		carry.rec += carry.recV * dt
+		carry.flash = math.max(0, carry.flash - dt)
+		if math.abs(carry.rec) > 1e-4 then
+			if r.gun then
+				r.gun.Transform = r.gun.Transform
+					* CFrame.new(0, 0.02 * carry.rec, 0.08 * carry.rec)
+					* CFrame.Angles(math.rad(3 * carry.rec * (1 - 0.5 * carry.aim)), 0, 0)
+			end
+			r.rootJoint.Transform = inJoint(
+				C0.root,
+				CFrame.Angles(math.rad(-1.2 * carry.rec), 0, 0)
+			) * r.rootJoint.Transform
+		end
+		local muzzle = r.char:FindFirstChild("BlockoutRifle")
+		local flashPart = muzzle and muzzle:FindFirstChild("Muzzle")
+		if flashPart and flashPart:IsA("BasePart") then
+			flashPart.Color = if carry.flash > 0
+				then Color3.fromRGB(255, 210, 122)
+				else Color3.fromHex("2b2d2f")
+			flashPart.Material = if carry.flash > 0
+				then Enum.Material.Neon
+				else Enum.Material.SmoothPlastic
+		end
 		local look = camera.CFrame.LookVector
 		if firstPerson and lastLook then
 			local _, y1 = CFrame.lookAt(Vector3.zero, look):ToOrientation()

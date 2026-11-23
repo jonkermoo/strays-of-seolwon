@@ -440,7 +440,40 @@ local function reanchor(anim: any, w: any): any
 	return out
 end
 
+-- A baked animation (`raw = true`, tools/animation/baked.luau): every frame already holds each joint's Transform
+-- (Pose.CFrame, 12 numbers), sampled from the jarvis motion study. A frame without "Torso" is an upper-body layer:
+-- the root and torso poses weigh 0 so the cycle underneath keeps the body.
+local function buildRaw(anim: any): (any, number)
+	local seq = Instance.new("KeyframeSequence")
+	seq.Name = anim.name
+	seq.Loop = anim.loop == true
+	seq.Priority = Enum.AnimationPriority[anim.priority or "Movement"]
+	for _, f in anim.frames do
+		local kf = Instance.new("Keyframe")
+		kf.Name = "Keyframe"
+		kf.Time = f.t
+		local hrp = pose("HumanoidRootPart", CFrame.new(), "Linear")
+		local tc = f.poses.Torso
+		local torso = pose("Torso", if tc then CFrame.new(table.unpack(tc)) else CFrame.new(), "Linear")
+		if not tc then
+			hrp.Weight, torso.Weight = 0, 0
+		end
+		for name, c in f.poses do
+			if name ~= "Torso" then
+				pose(name, CFrame.new(table.unpack(c)), "Linear").Parent = torso
+			end
+		end
+		torso.Parent = hrp
+		hrp.Parent = kf
+		kf.Parent = seq
+	end
+	return seq, #anim.frames
+end
+
 local function build(anim: any): (any, number)
+	if anim.raw then
+		return buildRaw(anim)
+	end
 	local seq = Instance.new("KeyframeSequence")
 	seq.Name = anim.name
 	seq.Loop = anim.loop == true
@@ -676,10 +709,12 @@ assert(
 	#args >= 2,
 	"usage: lune run tools/animation/build.luau <out .rbxm> <data module> [<data module> ...]"
 )
--- every sequence from every data module goes into one Folder "Animations" (names must be unique)
+-- every sequence from every data module goes into one Folder "Animations". Names are unique within a module; a later
+-- module's animation replaces an earlier one of the same name (the baked motion study over the hand-keyed clips).
 local folder = Instance.new("Folder")
 folder.Name = "Animations"
 local seen = {}
+local byName = {}
 for i = 2, #args do
 	local data = luau.load(fs.readFile(args[i]), { debugName = args[i] })()
 	if type(data) == "function" then
@@ -687,14 +722,23 @@ for i = 2, #args do
 		data = data(WEAPONS, FIRING, HOLDS)
 	end
 	for _, anim in data do
-		assert(not seen[anim.name], `two animations named {anim.name}`)
-		seen[anim.name] = true
-		print(`{anim.name}`)
+		assert(seen[anim.name] ~= i, `two animations named {anim.name} in {args[i]}`)
+		local replaced = byName[anim.name] ~= nil
+		if replaced then
+			byName[anim.name]:Destroy()
+		end
+		seen[anim.name] = i
+		print(`{anim.name}{if replaced then " (replaces the earlier one)" else ""}`)
 		local seq, frames = build(anim)
 		seq.Parent = folder
-		print(
-			`  {#anim.keys} keys -> {frames} frames  {anim.keys[#anim.keys].t}s  loop={anim.loop == true}`
-		)
+		byName[anim.name] = seq
+		if anim.raw then
+			print(`  baked {frames} frames  {anim.frames[#anim.frames].t}s  loop={anim.loop == true}`)
+		else
+			print(
+				`  {#anim.keys} keys -> {frames} frames  {anim.keys[#anim.keys].t}s  loop={anim.loop == true}`
+			)
+		end
 	end
 end
 fs.writeFile(args[1], roblox.serializeModel({ folder }))
