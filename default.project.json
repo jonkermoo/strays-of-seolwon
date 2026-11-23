@@ -27,9 +27,6 @@
     },
     "Workspace": {
       "$className": "Workspace",
-      "Greybox": {
-        "$path": "assets/Greybox.rbxm"
-      },
       "StyleTest": {
         "$path": "assets/StyleTest.rbxm"
       }
