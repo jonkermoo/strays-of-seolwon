@@ -32,8 +32,8 @@ local BOB = { walk = 0.03, sprint = 0.08 } -- §4.1 1P camera bob
 local LAG = { max = 3, settle = 0.15 } -- §4.1 1P gun turn lag (deg, s)
 local VAULT = { hop = 3.5, mantle = 5.5, reach = 2.2, hopTime = 0.45, mantleTime = 0.8 } -- §3.7
 local LONG_FALL = 10 -- §3.6
-local VIEW_LIFT = Vector3.new(0, 1.2, -0.8) -- 1P: the body rides up and forward (root space) so the rifle shows
-local VIEW_LIFT_CROUCH = Vector3.new(0, 0.7, -0.8)
+local VIEW_LIFT = Vector3.new(0, 0.6, -0.6) -- 1P: the body rides up and forward (root space) so the rifle shows
+local VIEW_LIFT_CROUCH = Vector3.new(0, 1.1, -0.6)
 -- stance changes (§3.4 / §3.5): clip and seconds
 local CHANGE = {
 	stand_crouch = { "StandToCrouch", 0.2 },

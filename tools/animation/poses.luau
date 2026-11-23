@@ -20,7 +20,7 @@ P.SWIM_LEN = 1.2
 P.TREAD_LEN = 1.6
 
 P.IDLE_LEAN = 4
-P.WALK_LEAN = 3
+P.WALK_LEAN = 8 -- the tactical glide walk (user 2026-11-22; was 3)
 P.SPRINT_LEAN = 18
 P.CROUCH_LEAN = 20
 P.CROUCH_HIP = 0.8 -- the torso's bottom above the ground, crouched (head top ~3.8)
@@ -62,26 +62,65 @@ function P.kLeg(world: number, kneeY: number, kneeZ: number, lean: number?): any
 	}
 end
 
+-- Tactical stance (user 2026-11-22, "more tactical"): the torso is bladed TWIST degrees to the right (left
+-- shoulder forward, as a rifleman stands) so the R6 arms reach a shouldered rifle; the legs and head turn back by the
+-- same amount, so the feet and the face point ahead. Used by idle, walk, crouch, limp, jump/fall/land; not by the
+-- sprint (port arms), prone, crawl or swim.
+P.TWIST = -25
+P.UNTWIST = 25
+
 function P.idlePose(breath: number): any
 	return {
-		root = { lean = P.IDLE_LEAN + 0.6 * breath },
-		leftLeg = { spread = 4 },
-		rightLeg = { spread = 4 },
+		root = { lean = P.IDLE_LEAN + 0.6 * breath, twist = P.TWIST },
+		head = { twist = P.UNTWIST },
+		leftLeg = { spread = 4, twist = P.UNTWIST },
+		rightLeg = { spread = 4, twist = P.UNTWIST },
 		leftArm = { swing = P.IDLE_LEAN + 2 + breath, spread = P.SIDE_SPREAD + breath },
 		rightArm = { swing = P.IDLE_LEAN + 2 + breath, spread = P.SIDE_SPREAD + breath },
 	}
 end
 
 function P.crouchRoot(lean: number, bob: number?): any
-	return { lean = lean, y = P.CROUCH_HIP + math.cos(math.rad(lean)) - 3 + (bob or 0) }
+	return {
+		lean = lean,
+		y = P.CROUCH_HIP + math.cos(math.rad(lean)) - 3 + (bob or 0),
+		twist = P.TWIST,
+	}
+end
+
+-- Blade every key of an animation that isn't bladed yet (a key whose root has no twist): the torso turns TWIST,
+-- the legs and head turn back. Keys built from idlePose / crouchPose already are. Mirrored cycles are built unbladed
+-- and bladed after, or the mirror would flip the stance every other step.
+function P.blade(anim: any): any
+	for _, key in anim.keys do
+		local pose = key.pose
+		if pose.root and pose.root.twist == nil then
+			pose.root = table.clone(pose.root)
+			pose.root.twist = P.TWIST
+			for _, j in { "leftLeg", "rightLeg", "head" } do
+				local v = table.clone(pose[j] or {})
+				v.twist = (v.twist or 0) + P.UNTWIST
+				pose[j] = v
+			end
+		end
+	end
+	return anim
+end
+
+-- a leg pose turned back against the bladed torso
+function P.untwist(leg: any): any
+	local out = table.clone(leg)
+	out.twist = (out.twist or 0) + P.UNTWIST
+	return out
 end
 
 function P.crouchPose(lean: number?): any
 	local l = lean or P.CROUCH_LEAN
 	return {
 		root = P.crouchRoot(l),
-		leftLeg = P.kLeg(5, 2 * math.cos(math.rad(5)) - P.CROUCH_HIP, -0.55, l),
-		rightLeg = P.kLeg(-100, 0.5 - P.CROUCH_HIP, -0.2, l),
+		head = { twist = P.UNTWIST },
+		leftLeg = P.untwist(P.kLeg(5, 2 * math.cos(math.rad(5)) - P.CROUCH_HIP, -0.55, l)),
+		rightLeg = P.untwist(P.kLeg(-100, 0.5 - P.CROUCH_HIP, -0.2, l)),
 		leftArm = { swing = l + 4, spread = P.SIDE_SPREAD + 1 },
 		rightArm = { swing = l + 4, spread = P.SIDE_SPREAD + 1 },
 	}
@@ -103,12 +142,12 @@ function P.pronePose(breath: number?): any
 end
 
 -- Rifle poses in root space (the gun placed by its grip; yaw + muzzle left, pitch + muzzle up, roll + top left)
--- standing ready: low in front of the stomach, the butt near the right hip, muzzle ahead a little up and in
-P.GUN_READY = { x = 0.7, y = -0.75, z = -0.8, yaw = 18, pitch = 6 }
+-- standing ready (user 2026-11-22): low ready, the stock in the right shoulder, muzzle ~30 deg down ahead
+-- (placed in the world under the bladed idle torso; the other stances carry it on their own torso, P.carry below)
+P.GUN_READY = { x = 0.45, y = 0.0, z = -1.3, yaw = 8, pitch = -30 }
 -- sprint (user: "rifle carried across the chest"): port arms, muzzle up past the left shoulder
-P.GUN_SPRINT = { x = 0.55, y = -0.5, z = -0.5, yaw = 42, pitch = 12 }
--- crouched: the same carry, lower with the body
-P.GUN_CROUCH = { x = 0.65, y = -1.55, z = -1.15, yaw = 14, pitch = 4 }
+P.GUN_SPRINT = { x = 0.5, y = -0.45, z = -0.5, yaw = 45, pitch = 14 } -- tight to the chest, elbows in
+-- crouched: set at the end of this file (the standing carry moved with the crouched torso)
 -- prone: butt in the right shoulder, the gun flat on the ground ahead
 P.GUN_PRONE = { x = 0.55, y = -1.9, z = -0.85, yaw = 3, pitch = 2 }
 -- crawling: across the forearms in front of the head
@@ -176,5 +215,25 @@ function P.torsoPoint(root: any, x: number, y: number, z: number): any
 	local p = P.torsoFrame(root) * roblox.Vector3.new(x, y, z)
 	return { x = p.X, y = p.Y, z = p.Z }
 end
+
+-- The standing carry moved onto another torso (crouch, walk): the gun keeps its place against the torso, and its
+-- muzzle keeps the standing pitch (the extra lean is taken back out).
+local STAND_ROOT = { lean = P.IDLE_LEAN, twist = P.TWIST }
+local function gunCF(g: any): any
+	local r = math.rad
+	return CFrame.new(g.x, g.y, g.z)
+		* CFrame.Angles(0, r(g.yaw or 0), 0)
+		* CFrame.Angles(r(g.pitch or 0), 0, 0)
+		* CFrame.Angles(0, 0, r(g.roll or 0))
+end
+local LOCAL_READY = P.torsoFrame(STAND_ROOT):Inverse() * gunCF(P.GUN_READY)
+function P.carry(root: any): any
+	local cf = P.torsoFrame(root) * LOCAL_READY
+	local p = cf.Position
+	local _, yaw = cf:ToEulerAnglesYXZ()
+	local g = P.GUN_READY
+	return { x = p.X, y = p.Y, z = p.Z, yaw = math.deg(yaw), pitch = g.pitch, roll = 0 }
+end
+P.GUN_CROUCH = P.carry(P.crouchRoot(P.CROUCH_LEAN))
 
 return P

@@ -45,23 +45,24 @@ local idle = {
 	},
 }
 
--- Walk: lean 3, soft knees, small bob, steady head, no shoulder roll
+-- Walk: the tactical glide (user 2026-11-22): knees bent (the body ~0.2 lower), short rolling steps, torso lean 8,
+-- the upper body nearly still (a small bob only; the rifle layer barely moves), the head held level. Bladed stance.
 local WL = P.WALK_LEAN
-local walk = cycle("Walk", P.WALK_LEN, 0.5, {
-	root = { lean = WL },
-	head = { lean = -1 },
-	leftLeg = { swing = 20 },
-	rightLeg = { swing = -24 },
-	leftArm = { swing = WL - 14, spread = SIDE },
-	rightArm = { swing = WL + 14, spread = SIDE },
-}, {
-	root = { lean = WL },
-	head = { lean = -1 },
-	leftLeg = { swing = -4 },
-	rightLeg = { swing = 6, y = 0.24 },
+local walk = P.blade(cycle("Walk", P.WALK_LEN, 0.25, {
+	root = { lean = WL, y = -0.2 },
+	head = { lean = -WL + 2 },
+	leftLeg = { swing = WL + 14 },
+	rightLeg = { swing = WL - 20 },
 	leftArm = { swing = WL, spread = SIDE },
 	rightArm = { swing = WL, spread = SIDE },
-})
+}, {
+	root = { lean = WL, y = -0.2 },
+	head = { lean = -WL + 2 },
+	leftLeg = { swing = WL - 3 },
+	rightLeg = { swing = WL + 4, y = 0.32 },
+	leftArm = { swing = WL, spread = SIDE },
+	rightArm = { swing = WL, spread = SIDE },
+}))
 
 -- Sprint: lean 18, long strides; the head counters part of the lean to look ahead
 local SL = P.SPRINT_LEAN
@@ -116,12 +117,13 @@ for k = 0, 8 do
 	local bob = 0.07 * J_BOB[i]
 	local function leg(pose: number): any
 		local j = J[pose]
-		return kLeg(j[1], j[2] - (if J_PLANTED[pose] then bob else 0), j[3])
+		return P.untwist(kLeg(j[1], j[2] - (if J_PLANTED[pose] then bob else 0), j[3]))
 	end
 	table.insert(crouchKeys, {
 		t = k / 8 * P.CROUCH_LEN,
 		pose = {
 			root = P.crouchRoot(CL, bob),
+			head = { twist = P.UNTWIST },
 			leftLeg = leg(l),
 			rightLeg = leg(r),
 			leftArm = { swing = CL + 4 + J_ARM[r], spread = SIDE + 1 },
@@ -303,8 +305,11 @@ local sprintStart = {
 	priority = "Action2",
 	only = { "root", "head" },
 	keys = {
-		{ t = 0, pose = { root = { lean = WL } } },
-		{ t = 0.067, pose = { root = { lean = WL - 2 } } }, -- anticipation: a hair back
+		{ t = 0, pose = { root = { lean = WL, twist = P.TWIST }, head = { twist = P.UNTWIST } } },
+		{
+			t = 0.067,
+			pose = { root = { lean = WL - 2, twist = P.TWIST }, head = { twist = P.UNTWIST } },
+		}, -- anticipation: a hair back
 		{ t = 0.12, pose = { root = { lean = SL + 4 }, head = { lean = -14 } } },
 		{ t = 0.15, pose = { root = { lean = SL }, head = { lean = -12 } } },
 	},
@@ -447,6 +452,18 @@ local turnShuffle = {
 		{ t = 0.3, pose = { leftLeg = { spread = 4 }, rightLeg = { spread = 4 } } },
 	},
 }
+
+-- the tactical stance on the rest (P.blade); the shuffle's legs turn back against the bladed torso
+for _, key in turnShuffle.keys do
+	key.pose.leftLeg = P.untwist(key.pose.leftLeg)
+	key.pose.rightLeg = P.untwist(key.pose.rightLeg)
+end
+P.blade(jump)
+P.blade(landShort)
+P.blade(landLong)
+P.blade(sprintStop)
+P.blade(limpOne)
+P.blade(limpBoth)
 
 return {
 	idle,

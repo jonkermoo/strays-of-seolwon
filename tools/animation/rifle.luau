@@ -12,7 +12,7 @@ local P = luau.load(fs.readFile("tools/animation/poses.luau"), { debugName = "po
 local W = "blockout"
 -- third person: both hands under the gun, the gun resting on them (Runenkrieg holds.luau H.UNDER / `touch`):
 -- the right hand at the pistol grip, the left under the handguard
-local HANDS = { right = { 0, -0.12, 0.08 }, left = { 0, -0.02, -1.15 } }
+local HANDS = { right = { 0, -0.12, 0.08 }, left = { 0, -0.02, -0.95 } }
 local UNDER = { left = { -0.7071, -0.7071, 0 }, right = { 0.7071, -0.7071, 0 } }
 
 local function g(base: any, d: { [string]: number }?): any
@@ -91,15 +91,17 @@ local function moving(
 end
 
 local CROUCH_ROOT = P.crouchRoot(P.CROUCH_LEAN)
+-- the glide walk's torso: the rifle rides on it nearly still (user 2026-11-22: the upper body stays steady)
+local WALK_ROOT = { lean = P.WALK_LEAN, y = -0.2, twist = P.TWIST }
 local holds = {
-	hold("HoldIdle", P.GUN_READY, { lean = P.IDLE_LEAN }, true),
+	hold("HoldIdle", P.GUN_READY, { lean = P.IDLE_LEAN, twist = P.TWIST }, true),
 	moving(
 		"HoldWalk",
-		P.GUN_READY,
+		P.carry(WALK_ROOT),
 		P.WALK_LEN,
-		{ lean = P.WALK_LEAN },
-		{ y = -0.04, pitch = -2, x = 0.04, yaw = 3, roll = 3 },
-		{ y = 0.03, pitch = 1 }
+		WALK_ROOT,
+		{ y = -0.015, pitch = -0.6, x = 0.01, yaw = 0.8 },
+		{ y = 0.01, pitch = 0.3 }
 	),
 	moving(
 		"HoldSprint",
@@ -115,8 +117,8 @@ local holds = {
 		P.GUN_CROUCH,
 		P.CROUCH_LEN,
 		CROUCH_ROOT,
-		{ y = -0.03, pitch = -1.5, x = 0.03, yaw = 2, roll = 2 },
-		{ y = 0.02, pitch = 1 }
+		{ y = -0.015, pitch = -0.6, x = 0.01, yaw = 0.8 },
+		{ y = 0.01, pitch = 0.3 }
 	),
 	hold("HoldProne", P.GUN_PRONE, P.PRONE_ROOT, false),
 	moving(
@@ -262,31 +264,21 @@ local function leftOn(x: number, y: number, z: number, w: number): any
 end
 local vault = oneShot("VaultHop", {
 	key(0, run(18), P.GUN_READY, leftOn(-0.5, -1.2, -1.2, 0)),
-	key(
-		0.07,
-		{
-			root = { lean = 30, tilt = -8, y = -0.1 },
-			leftLeg = { swing = 8 },
-			rightLeg = { swing = -28 },
-		},
-		g(P.GUN_READY, { pitch = 6 }),
-		leftOn(-0.5, -1.25, -1.2, 1)
-	),
+	key(0.07, {
+		root = { lean = 30, tilt = -8, y = -0.1 },
+		leftLeg = { swing = 8 },
+		rightLeg = { swing = -28 },
+	}, g(P.GUN_READY, { pitch = 6 }), leftOn(-0.5, -1.25, -1.2, 1)),
 	key(0.2, {
 		root = { lean = 20, tilt = -18 },
 		leftLeg = { swing = 68, spread = -22, y = 0.3 },
 		rightLeg = { swing = 62, spread = 30, y = 0.3 },
 	}, g(P.GUN_READY, { y = 0.15, pitch = 14, yaw = 6 }), leftOn(-0.6, -1.6, -0.5, 1)),
-	key(
-		0.32,
-		{
-			root = { lean = 12, tilt = -6, y = -0.08 },
-			leftLeg = { swing = 20 },
-			rightLeg = { swing = 32, spread = 6 },
-		},
-		g(P.GUN_READY, { y = 0.05, pitch = 4 }),
-		leftOn(-0.9, -1.0, -0.3, 0.5)
-	),
+	key(0.32, {
+		root = { lean = 12, tilt = -6, y = -0.08 },
+		leftLeg = { swing = 20 },
+		rightLeg = { swing = 32, spread = 6 },
+	}, g(P.GUN_READY, { y = 0.05, pitch = 4 }), leftOn(-0.9, -1.0, -0.3, 0.5)),
 	key(0.45, run(15), P.GUN_READY, leftOn(-0.9, -0.9, -0.6, 0)),
 })
 vault.hands = HANDS -- the left hand leaves for the wall by leftMix

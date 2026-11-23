@@ -191,14 +191,11 @@ local function sample(anim: any): { any }
 					+ h01 * value(i + 1, k)
 					+ h11 * h * tangent(i + 1, k)
 			end
-			table.insert(
-				out,
-				{
-					t = t0 + u * h,
-					pose = unflatten(f),
-					marker = if s == 0 then keys[i].marker else nil,
-				}
-			)
+			table.insert(out, {
+				t = t0 + u * h,
+				pose = unflatten(f),
+				marker = if s == 0 then keys[i].marker else nil,
+			})
 		end
 	end
 	table.insert(out, { t = keys[n].t, pose = keys[n].pose, marker = keys[n].marker })
