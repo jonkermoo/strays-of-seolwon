@@ -68,7 +68,7 @@ local function soldier(source: Model): Model
 	rootPart.CanCollide = true
 	local hum = m:FindFirstChildOfClass("Humanoid") :: Humanoid
 	hum.UseJumpPower = false
-	hum.JumpHeight = 2.7 -- ANIMATION-GUIDE §3.6
+	hum.JumpHeight = 1.5 -- ANIMATION-GUIDE §3.6 (user 2026-11-23: a low hop, weaker than a vault)
 	hum.WalkSpeed = 12
 	hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 	m.PrimaryPart = m:FindFirstChild("HumanoidRootPart") :: BasePart

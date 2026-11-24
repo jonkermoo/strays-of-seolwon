@@ -62,7 +62,18 @@ local BLEND = 0.13 -- §3.11 0.12-0.15
 local LEAN = { tilt = 20, inTime = 0.15, outTime = 0.12, roll = 8 } -- §3.8 (+ 1P camera roll, approved proposal)
 local BOB = { walk = 0.03, sprint = 0.08 } -- §4.1 1P camera bob
 local LAG = { max = 3, settle = 0.15 } -- §4.1 1P gun turn lag (deg, s)
-local VAULT = { hop = 3.5, mantle = 5.5, reach = 2.2, hopTime = 0.45, mantleTime = 0.8 } -- §3.7
+-- §3.7; faceSlope: the face must be near vertical (|normal.Y| under this); standable: a top / landing floor no steeper
+-- than ~37 deg (normal.Y over this); maxDrop: the farthest floor below the top a vault lands on
+local VAULT = {
+	hop = 3.5,
+	mantle = 5.5,
+	reach = 2.2,
+	hopTime = 0.45,
+	mantleTime = 0.8,
+	faceSlope = 0.5,
+	standable = 0.8,
+	maxDrop = 8,
+}
 local LONG_FALL = 10 -- §3.6
 local VIEW_LIFT = Vector3.new(0, 0.6, -0.6) -- 1P: the body rides up and forward (root space) so the rifle shows
 local VIEW_LIFT_CROUCH = Vector3.new(0, 1.1, -0.6)
@@ -221,6 +232,7 @@ function MoveTest.start()
 	local oneShotName = ""
 	local lastPlay = "" -- the last one-shot started (any priority), for checks
 	local airPeak = 0
+	local lastWalkT = 0
 	local wasSprinting = false
 	local sprintStopAt = 0
 	local dip = { t0 = 0, len = 0, depth = 0 }
@@ -266,7 +278,8 @@ function MoveTest.start()
 		if slots[slot] == name then
 			return
 		end
-		local old = slots[slot] and track(slots[slot] :: string)
+		local oldName = slots[slot]
+		local old = oldName and track(oldName :: string)
 		if old then
 			old:Stop(fade or BLEND)
 		end
@@ -274,6 +287,17 @@ function MoveTest.start()
 		local new = name and track(name)
 		if new then
 			new:Play(fade or BLEND)
+			-- cycle to cycle (walk / aim walk / crouch walk / sprint ...) the new loop picks up the old one's phase, so
+			-- the feet don't restart from the first contact
+			if
+				old
+				and NOMINAL[oldName :: string]
+				and NOMINAL[name :: string]
+				and old.Length > 0
+				and new.Length > 0
+			then
+				new.TimePosition = (old.TimePosition / old.Length) * new.Length
+			end
 		end
 	end
 	local function play(name: string, fade: number?)
@@ -328,6 +352,9 @@ function MoveTest.start()
 		for h = 0.6, 5.4, 0.4 do
 			local hit = ray(Vector3.new(r.Position.X, g + h, r.Position.Z), dir * VAULT.reach)
 			if hit then
+				if math.abs(hit.Normal.Y) > VAULT.faceSlope then
+					return false -- a slope or a roof edge, not a wall to go over (walk up it or jump)
+				end
 				face = hit.Position
 				break
 			end
@@ -340,8 +367,8 @@ function MoveTest.start()
 		end
 		local top =
 			ray(face + dir * 0.25 + Vector3.new(0, g + 5.6 - face.Y, 0), Vector3.new(0, -5.4, 0))
-		if not top then
-			return false
+		if not top or top.Normal.Y < VAULT.standable then
+			return false -- nothing flat to put the hands and feet on (a steep or pointed top)
 		end
 		local h = top.Position.Y - g
 		if h < 0.8 or h > VAULT.mantle then
@@ -392,9 +419,34 @@ function MoveTest.start()
 		local endPos = p0.Position + dir * (path[n][2] + shift)
 		local floorY = land.Y
 		if not onto then
-			local below =
-				ray(Vector3.new(endPos.X, top.Position.Y + 1, endPos.Z), Vector3.new(0, -12, 0))
-			floorY = (if below then below.Position.Y else g) + 3
+			local below = ray(
+				Vector3.new(endPos.X, top.Position.Y + 1, endPos.Z),
+				Vector3.new(0, -(VAULT.maxDrop + h + 1), 0)
+			)
+			if not below or below.Normal.Y < VAULT.standable then
+				return false -- no floor to land on past it (a map edge, a drop, a steep bank)
+			end
+			floorY = below.Position.Y + 3
+		end
+		-- the way over and the landing must be clear: a straight line just over the top to the end, and a body-sized
+		-- box where it stands at the end (no vaulting into or through walls)
+		local over = top.Position.Y + (if headroom < 5 then 1.2 else 2)
+		local from = Vector3.new(p0.Position.X, over, p0.Position.Z)
+		local to = Vector3.new(endPos.X, if onto then floorY else over, endPos.Z)
+		if ray(from, to - from) then
+			return false
+		end
+		local overlap = OverlapParams.new()
+		overlap.FilterType = Enum.RaycastFilterType.Exclude
+		overlap.FilterDescendantsInstances = { rig and rig.char :: any }
+		overlap.RespectCanCollide = true
+		local room = workspace:GetPartBoundsInBox(
+			CFrame.new(endPos.X, floorY - 0.2, endPos.Z) * (p0 - p0.Position),
+			Vector3.new(1.8, 4.2, 1.2),
+			overlap
+		)
+		if #room > 0 then
+			return false
 		end
 		local dropY = floorY - (p0.Position.Y + path[n][1] * ky) -- a lower or higher floor past the obstacle
 		vaulting = true
@@ -441,20 +493,33 @@ function MoveTest.start()
 		elseif name == "prone" then
 			setStance(if stance == "prone" then "stand" else "prone")
 		elseif name == "jump" then
-			if not rig or vaulting or os.clock() < busyUntil then
+			-- (user 2026-11-23) a plain jump whenever: standing, crouched (stands and hops) or mid stance change; a
+			-- vault only where tryVault finds something to stand on. Prone is too low to hop: Space gets up a step.
+			if not rig or vaulting then
+				return
+			end
+			if stance == "prone" then
+				if os.clock() >= busyUntil then
+					setStance("crouch")
+				end
 				return
 			end
 			if stance == "crouch" then
 				setStance("stand")
-			elseif stance == "prone" then
-				setStance("crouch")
-			elseif not tryVault() then
+			end
+			if not tryVault() then
 				local st = rig.hum:GetState()
 				if
 					st ~= Enum.HumanoidStateType.Freefall
 					and st ~= Enum.HumanoidStateType.Jumping
 				then
-					rig.hum.Jump = true
+					if oneShot and string.find(oneShotName, "To") then
+						oneShot:Stop(0.08) -- the jump takes over from a stance change
+					end
+					busyUntil = 0
+					-- (not hum.Jump = true: Space is sunk here, so the default ControlModule writes Jump = false every
+					-- frame and the flag never reached the simulation; no jump happened at all)
+					rig.hum:ChangeState(Enum.HumanoidStateType.Jumping)
 				end
 			end
 		elseif name == "limp" then
@@ -567,7 +632,10 @@ function MoveTest.start()
 			elseif new == Enum.HumanoidStateType.Landed then
 				local fallen = airPeak - r.root.Position.Y
 				local long = fallen > LONG_FALL
-				play(if long then "LandLong" else "LandShort")
+				-- landing on the move, the cycle carries on (the clip froze the legs): only the camera dip, below
+				if long or r.hum.MoveDirection.Magnitude < 0.1 then
+					play(if long then "LandLong" else "LandShort")
+				end
 				dip = {
 					t0 = os.clock(),
 					len = if long then 0.35 else 0.15,
@@ -726,6 +794,9 @@ function MoveTest.start()
 		if vaulting or swimming then
 			carry.shots = 0
 		end
+		if oneShot and string.find(oneShotName, "Prone") then
+			ws = math.min(ws, SPEED.prone) -- going down or getting up: no sliding at a run under it
+		end
 		hum.WalkSpeed = ws
 
 		-- sprint accents (§3.3)
@@ -746,7 +817,12 @@ function MoveTest.start()
 		-- loops: the body cycle, and its hold family (low ready / safe / hip / aim, weighted by the carry)
 		local body, hold
 		local family: string? = nil -- "Idle" | "Walk" | "Crouch" | "CrouchWalk"
-		local walkingNow = moving and speed > 0.5
+		-- (a one-frame drop in MoveDirection flipped the body to its idle and back, restarting the cycle from its first
+		-- frame: the walk looked paused; seen at 15 flips/s crouch-walking) the cycle holds through gaps under 0.15 s
+		if moving and speed > 0.5 then
+			lastWalkT = os.clock()
+		end
+		local walkingNow = speed > 0.5 and os.clock() - lastWalkT < 0.15
 		local aimBody = carry.aim > 0.5
 		if swimming then
 			body, hold = if walkingNow then "Swim" else "Tread", nil
@@ -845,6 +921,22 @@ function MoveTest.start()
 		holdW = want
 		if oneShot and not oneShot.IsPlaying then
 			oneShot, oneShotName = nil, ""
+		end
+		-- (user 2026-11-23: "between animations there is a pause") a full-body one-shot froze the leg cycle: the
+		-- crouch / stand changes held the legs for 0.5 s while the body slid on at full speed. Moving, a crouch or
+		-- stand change hands over to the new stance's cycle at once (the height still eases across the fade), and
+		-- every one-shot fades out into the loop over its last BLEND s instead of snapping off at its end.
+		if oneShot and oneShot.IsPlaying and not vaulting then
+			local change = string.find(oneShotName, "To") ~= nil
+			local toProne = string.find(oneShotName, "Prone") ~= nil
+			if change and walkingNow and not toProne then
+				oneShot:Stop(0.2)
+				oneShot, oneShotName = nil, ""
+				busyUntil = 0
+			elseif oneShot.Length > 0 and oneShot.TimePosition > oneShot.Length - BLEND then
+				oneShot:Stop(BLEND)
+				oneShot, oneShotName = nil, ""
+			end
 		end
 
 		-- turn in place past 45 deg: a foot shuffle (§3.11)
