@@ -1,6 +1,8 @@
 --!strict
 -- M2 movement test (style-test branch only): the player spawns as the approved Strays rifleman (M1 kit) carrying the
--- block-out rifle. The scene's rifleman is copied, its kit welded to the body, the rifle joined to the Torso by a
+-- rigged test rifle (ReplicatedStorage.TestRifle, assets/TestRifle.rbxm: 14 MeshParts, a Motor6D per moving part under
+-- Gun). Set the Workspace attribute StyleRifle = "blockout" before Play to carry the block-out rifle instead.
+-- The scene's rifleman is copied, its kit welded to the body, the rifle joined to the Torso by a
 -- Motor6D "Gun" (the clips' Gun pose). A copy also goes to ReplicatedStorage.StyleSoldier for the client's clip
 -- gallery. Torso, Head and limbs go into a collision group that collides with nothing (only the root collides), so
 -- the prone and crawl poses don't push the body around (notes/traps/animation.md).
@@ -22,6 +24,24 @@ local function weldTo(part: BasePart, body: BasePart)
 	w.Part0 = body
 	w.Part1 = part
 	w.Parent = part
+end
+
+-- The carried rifle, its root part "Gun" at `at`. Both share the gun space of tools/animation/weapons.luau (origin
+-- on the right hand's grip, -Z to the muzzle, +Y up), so the clips' Gun pose fits either.
+local function heldRifle(at: CFrame): Model
+	local real = ReplicatedStorage:FindFirstChild("TestRifle")
+	if
+		workspace:GetAttribute("StyleRifle") == "blockout"
+		or not (real and real:IsA("Model") and real.PrimaryPart)
+	then
+		if workspace:GetAttribute("StyleRifle") ~= "blockout" then
+			warn("[StyleCharacter] no ReplicatedStorage.TestRifle; carrying the block-out rifle")
+		end
+		return Blockout.build(at)
+	end
+	local rifle = (real :: Model):Clone()
+	rifle:PivotTo(at)
+	return rifle
 end
 
 local function soldier(source: Model): Model
@@ -50,7 +70,7 @@ local function soldier(source: Model): Model
 		end
 	end
 	-- the rifle: Motor6D "Gun" on the Torso, C0 = C1 = identity (the clips place it)
-	local rifle = Blockout.build(torso.CFrame)
+	local rifle = heldRifle(torso.CFrame)
 	for _, p in rifle:GetDescendants() do
 		if p:IsA("BasePart") then
 			p.CollisionGroup = GROUP

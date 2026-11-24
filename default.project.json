@@ -8,6 +8,9 @@
       },
       "Animations": {
         "$path": "assets/Animations.rbxm"
+      },
+      "TestRifle": {
+        "$path": "assets/TestRifle.rbxm"
       }
     },
     "ServerScriptService": {

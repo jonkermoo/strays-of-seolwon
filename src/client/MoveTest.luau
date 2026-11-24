@@ -1032,7 +1032,7 @@ function MoveTest.start()
 				CFrame.Angles(math.rad(-1.2 * carry.rec), 0, 0)
 			) * r.rootJoint.Transform
 		end
-		local muzzle = r.char:FindFirstChild("BlockoutRifle")
+		local muzzle = r.char:FindFirstChild("BlockoutRifle") -- the test rifle has no Muzzle part (no flash yet)
 		local flashPart = muzzle and muzzle:FindFirstChild("Muzzle")
 		if flashPart and flashPart:IsA("BasePart") then
 			flashPart.Color = if carry.flash > 0
@@ -1145,6 +1145,7 @@ function MoveTest.start()
 				end
 			end
 			local rifle = r.char:FindFirstChild("BlockoutRifle")
+				or r.char:FindFirstChild("TestRifle")
 			if rifle then
 				for _, p in rifle:GetChildren() do
 					if p:IsA("BasePart") then
