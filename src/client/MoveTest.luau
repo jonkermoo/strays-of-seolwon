@@ -26,6 +26,8 @@ local MotionPaths = require(
 	ReplicatedStorage:WaitForChild("Shared"):WaitForChild("StyleTest"):WaitForChild("MotionPaths")
 )
 
+local ViewModel = require(script.Parent:WaitForChild("ViewModel"))
+
 local MoveTest = {}
 
 local player = Players.LocalPlayer
@@ -75,6 +77,9 @@ local VAULT = {
 	maxDrop = 8,
 }
 local LONG_FALL = 10 -- §3.6
+-- no jump spam (user 2026-11-25: at an edge the Humanoid flickers between landed and falling, so Space hopped again
+-- and again): a plain jump needs JUMP.cooldown s since the last one and JUMP.grounded s on the ground without a break
+local JUMP = { cooldown = 0.6, grounded = 0.15 }
 local VIEW_LIFT = Vector3.new(0, 0.6, -0.6) -- 1P: the body rides up and forward (root space) so the rifle shows
 local VIEW_LIFT_CROUCH = Vector3.new(0, 1.1, -0.6)
 -- stance changes (§3.4 / §3.5; timing from the motion study, the clip's own length): clip
@@ -232,6 +237,7 @@ function MoveTest.start()
 	local oneShotName = ""
 	local lastPlay = "" -- the last one-shot started (any priority), for checks
 	local airPeak = 0
+	local lastJumpT, groundedSince = -99, 0
 	local lastWalkT = 0
 	local wasSprinting = false
 	local sprintStopAt = 0
@@ -259,6 +265,8 @@ function MoveTest.start()
 	local life = 0
 	local stanceY = { stand = 0, crouch = -1.25, prone = -2.55 }
 	local bobPhase = 0
+	local viewModel: ViewModel.ViewModel? = nil -- the first-person copy (rifle + slim forearms)
+	local vmTarget = "safe"
 	local lagYaw, lagPitch = 0, 0
 	local vmBlend = 0
 	local liftNow = VIEW_LIFT
@@ -509,10 +517,14 @@ function MoveTest.start()
 			end
 			if not tryVault() then
 				local st = rig.hum:GetState()
+				local now = os.clock()
 				if
 					st ~= Enum.HumanoidStateType.Freefall
 					and st ~= Enum.HumanoidStateType.Jumping
+					and now - lastJumpT >= JUMP.cooldown
+					and now - groundedSince >= JUMP.grounded
 				then
+					lastJumpT = now
 					if oneShot and string.find(oneShotName, "To") then
 						oneShot:Stop(0.08) -- the jump takes over from a stance change
 					end
@@ -624,7 +636,16 @@ function MoveTest.start()
 			return
 		end
 		rig = r
+		if viewModel then
+			viewModel:destroy()
+		end
+		viewModel = ViewModel.new(char)
 		r.hum.StateChanged:Connect(function(_, new)
+			if new == Enum.HumanoidStateType.Jumping or new == Enum.HumanoidStateType.Freefall then
+				groundedSince = math.huge -- off the ground: the grounded clock starts again on landing
+			elseif groundedSince == math.huge then
+				groundedSince = os.clock()
+			end
 			if new == Enum.HumanoidStateType.Jumping then
 				airPeak = r.root.Position.Y
 			elseif new == Enum.HumanoidStateType.Freefall then
@@ -777,6 +798,14 @@ function MoveTest.start()
 			if hipOn then CARRY.hipIn else CARRY.hipOut,
 			dt
 		)
+		-- the first-person view's hold (it runs its own mount between holds)
+		vmTarget = if vaulting or swimming
+			then "safe"
+			elseif aimOn then "aim"
+			elseif hipOn then "hip"
+			elseif sprinting and hum.MoveDirection.Magnitude > 0.1 then "sprint"
+			elseif alert then "ready"
+			else "safe"
 		carry.shotT -= dt
 		local upNow = carry.ready > 0.97
 			and (carry.aim > 0.9 or carry.hip > 0.97 or stance == "prone")
@@ -1127,34 +1156,40 @@ function MoveTest.start()
 		camOffset = camOffset:Lerp(target, k)
 		r.hum.CameraOffset = camOffset
 	end)
-	RunService:BindToRenderStep("M2CameraAfter", Enum.RenderPriority.Camera.Value + 2, function()
-		local r = rig
-		if not r then
-			return
-		end
-		local fp = (camera.CFrame.Position - r.head.Position).Magnitude < 2.5
-		if fp and math.abs(leanA) > 0.01 then
-			camera.CFrame *= CFrame.Angles(0, 0, -math.rad(LEAN.roll) * leanA)
-		end
-		-- 1P: show the arms and the rifle (Roblox hides the whole body)
-		if fp then
-			for _, n in { "Left Arm", "Right Arm" } do
-				local p = r.char:FindFirstChild(n)
-				if p and p:IsA("BasePart") then
-					p.LocalTransparencyModifier = 0
-				end
+	RunService:BindToRenderStep(
+		"M2CameraAfter",
+		Enum.RenderPriority.Camera.Value + 2,
+		function(dt: number)
+			local r = rig
+			if not r then
+				return
 			end
-			local rifle = r.char:FindFirstChild("BlockoutRifle")
-				or r.char:FindFirstChild("TestRifle")
-			if rifle then
-				for _, p in rifle:GetChildren() do
-					if p:IsA("BasePart") then
+			local fp = (camera.CFrame.Position - r.head.Position).Magnitude < 2.5
+			if fp and math.abs(leanA) > 0.01 then
+				camera.CFrame *= CFrame.Angles(0, 0, -math.rad(LEAN.roll) * leanA)
+			end
+			-- 1P: a client-only view (the rifle and slim forearms in camera space); the body stays hidden
+			if viewModel then
+				local v = r.root.AssemblyLinearVelocity
+				viewModel:update(dt, camera, {
+					fp = fp,
+					target = vmTarget,
+					rec = carry.rec,
+					aim = carry.aim,
+					speed = Vector3.new(v.X, 0, v.Z).Magnitude,
+					phase = bobPhase,
+				})
+			elseif fp then
+				-- no rifle to copy: show the body's arms and rifle as before
+				for _, n in { "Left Arm", "Right Arm" } do
+					local p = r.char:FindFirstChild(n)
+					if p and p:IsA("BasePart") then
 						p.LocalTransparencyModifier = 0
 					end
 				end
 			end
 		end
-	end)
+	)
 end
 
 return MoveTest
