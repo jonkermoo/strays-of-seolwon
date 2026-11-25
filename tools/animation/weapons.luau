@@ -12,18 +12,18 @@ return {
 		},
 		shouldered = { 0.4, 1.45, -0.6 },
 	},
-	-- test_rifle: the rigged test rifle (assets/TestRifle.rbxm, 1 stud = 0.28 m, 3.3 studs long: muzzle z -2.06, butt
-	-- z +1.26 with the stock out). Origin on the top of the pistol grip (rifle space -112, 0, 22 mm), as blockout's.
-	-- Points measured on the model (jarvis rifle_import/rig/test_rifle.gun.json, from model/rig.json): Aim is the eye
-	-- on the iron sights' line; RightHand the middle of the pistol grip; LeftHand the handguard underside, 3/4 of the way forward.
-	-- The holds are still keyed with blockout's hand points (rifle.luau HANDS), not these.
+	-- test_rifle: the rigged test rifle (assets/TestRifle.rbxm, 1 stud = 0.28 m, 3.3 studs long: muzzle z -2.13, butt
+	-- z +1.19 with the stock out). Origin where the pistol grip's centre line meets the lower's underside (rifle space
+	-- -131, 0, 2 mm). Points measured on the model (jarvis rifle_import/rig/test_rifle.gun.json, from model/rig.json):
+	-- Aim is the eye on the iron sights' line; RightHand the middle of the pistol grip; LeftHand the handguard
+	-- underside, 3/4 of the way forward. The holds are still keyed with blockout's hand points (rifle.luau HANDS).
 	test_rifle = {
 		grip = { 0, 0, 0 },
 		scale = { 1, 1, 1 },
 		attachments = {
-			Aim = { 0, 0.3781, 0.3252 },
-			RightHand = { 0, -0.275, 0.1511 },
-			LeftHand = { 0, 0.0161, -1.23 },
+			Aim = { 0, 0.4495, 0.2573 },
+			RightHand = { 0, -0.2036, 0.0832 },
+			LeftHand = { 0, 0.0875, -1.2979 },
 		},
 	},
 }
