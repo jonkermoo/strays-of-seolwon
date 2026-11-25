@@ -114,28 +114,34 @@ local C0 = {
 	rightLeg = CFrame.new(0, 0, 0, 0, 0, 1, 0, 1, 0, -1, 0, 0),
 	leftLeg = CFrame.new(0, 0, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0),
 }
--- The live layer multiplies onto the Animator's pose. If it runs again before the Animator has rewritten a joint
--- (a skipped or throttled animation step), multiplying onto its own result would stack the turn every pass (a sibling
--- branch saw a gun spin 100 studs off). So each pass starts from the Animator's pose: if a joint still holds exactly
--- what the last pass wrote, that pass's base is used again.
-local liveBase: { [Motor6D]: { base: CFrame, wrote: CFrame } } = setmetatable({}, { __mode = "k" }) :: any
+-- The live layer multiplies onto the Animator's pose in PreSimulation. It must never multiply onto its own earlier
+-- result, or the turn stacks every pass (the gun was flung millions of studs and the body spun, rifle-style-test
+-- 2026-11-25: an exact-equality check for "the Animator has not rewritten this joint" missed cases). So: just before
+-- each animation step (PreAnimation) every joint it touched gets the Animator's last pose back, so the Animator's new
+-- pose, or that one if it writes nothing, is what the next pass starts from; and a second pass before the next
+-- animation step starts from the same pose as the first.
+local liveBase: { [Motor6D]: CFrame } = {}
+local livePassed = false -- a pass already ran since the last animation step
 local function liveBegin(joints: { Motor6D })
 	for _, j in joints do
-		local rec = liveBase[j]
-		if rec and j.Transform == rec.wrote then
-			j.Transform = rec.base
+		local base = liveBase[j]
+		if livePassed and base then
+			j.Transform = base
 		else
-			liveBase[j] = { base = j.Transform, wrote = j.Transform }
+			liveBase[j] = j.Transform
 		end
 	end
+	livePassed = true
 end
-local function liveEnd(joints: { Motor6D })
-	for _, j in joints do
-		local rec = liveBase[j]
-		if rec then
-			rec.wrote = j.Transform
+local function liveRestore()
+	for j, base in liveBase do
+		if j.Parent then
+			j.Transform = base
+		else
+			liveBase[j] = nil
 		end
 	end
+	livePassed = false
 end
 
 local function inJoint(c0: CFrame, body: CFrame): CFrame
@@ -1046,6 +1052,8 @@ function MoveTest.start()
 
 	-- after the Animator: lean, 1P gun lag (on the root joint: in 1P only the arms and rifle show, so the whole view
 	-- model lags together; Transform isn't replicated)
+	-- the live layer's joints get the Animator's pose back before each animation step (see liveBegin)
+	RunService.PreAnimation:Connect(liveRestore)
 	RunService.PreSimulation:Connect(function(dt)
 		local r = rig
 		if not r then
@@ -1139,7 +1147,6 @@ function MoveTest.start()
 				r.rootJoint.Transform = inJoint(C0.root, CFrame.new(viewLift() * vmBlend))
 					* r.rootJoint.Transform
 			end
-			liveEnd(live)
 		end
 		lastLook = camera.CFrame.LookVector
 	end)
