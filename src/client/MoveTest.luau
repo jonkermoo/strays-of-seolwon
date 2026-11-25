@@ -3,7 +3,8 @@
 -- (ReplicatedStorage.Animations, built by tools/animation/build.luau) on the player's Strays rifleman with the
 -- block-out rifle, to the approved ANIMATION-GUIDE.md §2-4 (jarvis, 2026-11-22):
 --   WASD walk 12 · Shift sprint 20 · C crouch 7 · Z prone, crawl 3 · Space jump (low hop) / vault / mantle
---   Q / E lean (live, any cycle) · L limp: none / one leg 8 / both legs 5 · T first / third person
+--   Q / E lean (live, any cycle) · L limp: none / one leg 8 / both legs 5 · mouse wheel: zoom all the way in
+--   for first person (user 2026-11-25: "make first person just a scroll instead of T")
 --   F or right mouse aim (walk 8) · left click or X fire (hip fire unless aiming)
 -- The cycles, holds, stance changes and vaults are baked from the jarvis motion study (v11, approved 2026-11-23;
 -- tools/animation/baked.luau). Carry (study): with nothing happening the rifle rests in the safe carry; firing or
@@ -119,28 +120,34 @@ local C0 = {
 	rightLeg = CFrame.new(0, 0, 0, 0, 0, 1, 0, 1, 0, -1, 0, 0),
 	leftLeg = CFrame.new(0, 0, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0),
 }
--- The live layer multiplies onto the Animator's pose. If it runs again before the Animator has rewritten a joint
--- (a skipped or throttled animation step), multiplying onto its own result would stack the turn every pass (a sibling
--- branch saw a gun spin 100 studs off). So each pass starts from the Animator's pose: if a joint still holds exactly
--- what the last pass wrote, that pass's base is used again.
-local liveBase: { [Motor6D]: { base: CFrame, wrote: CFrame } } = setmetatable({}, { __mode = "k" }) :: any
+-- The live layer multiplies onto the Animator's pose in PreSimulation. It must never multiply onto its own earlier
+-- result, or the turn stacks every pass (the gun was flung millions of studs and the body spun, rifle-style-test
+-- 2026-11-25: an exact-equality check for "the Animator has not rewritten this joint" missed cases). So: just before
+-- each animation step (PreAnimation) every joint it touched gets the Animator's last pose back, so the Animator's new
+-- pose, or that one if it writes nothing, is what the next pass starts from; and a second pass before the next
+-- animation step starts from the same pose as the first.
+local liveBase: { [Motor6D]: CFrame } = {}
+local livePassed = false -- a pass already ran since the last animation step
 local function liveBegin(joints: { Motor6D })
 	for _, j in joints do
-		local rec = liveBase[j]
-		if rec and j.Transform == rec.wrote then
-			j.Transform = rec.base
+		local base = liveBase[j]
+		if livePassed and base then
+			j.Transform = base
 		else
-			liveBase[j] = { base = j.Transform, wrote = j.Transform }
+			liveBase[j] = j.Transform
 		end
 	end
+	livePassed = true
 end
-local function liveEnd(joints: { Motor6D })
-	for _, j in joints do
-		local rec = liveBase[j]
-		if rec then
-			rec.wrote = j.Transform
+local function liveRestore()
+	for j, base in liveBase do
+		if j.Parent then
+			j.Transform = base
+		else
+			liveBase[j] = nil
 		end
 	end
+	livePassed = false
 end
 
 local function inJoint(c0: CFrame, body: CFrame): CFrame
@@ -572,16 +579,23 @@ function MoveTest.start()
 		elseif name == "limp" then
 			limp = (limp + 1) % 3
 		elseif name == "camera" then
-			firstPerson = not firstPerson
-			if firstPerson then
-				player.CameraMode = Enum.CameraMode.LockFirstPerson
+			-- (test hook only: the player zooms with the mouse wheel) all the way in, or back out to 12
+			local zoomIn = not firstPerson
+			local was = if zoomIn
+				then player.CameraMaxZoomDistance
+				else player.CameraMinZoomDistance
+			if zoomIn then
+				player.CameraMaxZoomDistance = 0.5
 			else
-				player.CameraMode = Enum.CameraMode.Classic
 				player.CameraMinZoomDistance = 12
-				task.delay(0.1, function()
-					player.CameraMinZoomDistance = 0.5
-				end)
 			end
+			task.delay(0.1, function()
+				if zoomIn then
+					player.CameraMaxZoomDistance = was
+				else
+					player.CameraMinZoomDistance = was
+				end
+			end)
 		elseif name == "sprintOn" then
 			sprintHeld = true
 		elseif name == "sprintOff" then
@@ -629,14 +643,27 @@ function MoveTest.start()
 			cmd("leanR")
 		elseif k == Enum.KeyCode.L then
 			cmd("limp")
-		elseif k == Enum.KeyCode.T then
-			cmd("camera")
 		elseif k == Enum.KeyCode.F then
 			cmd("aimToggle")
 		elseif k == Enum.KeyCode.X or input.UserInputType == Enum.UserInputType.MouseButton1 then
 			cmd("fire")
 		elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
 			cmd("aimOn")
+		end
+	end)
+	-- mouse wheel: in to first person is Roblox's own zoom; out of it the Classic camera does not move on a wheel notch
+	-- (it stays at 0.5), so a notch out in first person pushes the camera out to 6 studs
+	UserInputService.InputChanged:Connect(function(input)
+		if
+			input.UserInputType == Enum.UserInputType.MouseWheel
+			and input.Position.Z < 0
+			and firstPerson
+		then
+			local was = player.CameraMinZoomDistance
+			player.CameraMinZoomDistance = 6
+			task.delay(0.1, function()
+				player.CameraMinZoomDistance = was
+			end)
 		end
 	end)
 	UserInputService.InputEnded:Connect(function(input)
@@ -1049,7 +1076,7 @@ function MoveTest.start()
 			})
 		)
 		label.Text = string.format(
-			" WASD move · Shift sprint · C crouch · Z prone · Space jump/vault · Q/E lean · F/RMB aim · click fire · L limp · T camera\n %s %s | %s + %s %s | %.1f studs/s | limp %s | %s",
+			" WASD move · Shift sprint · C crouch · Z prone · Space jump/vault · Q/E lean · F/RMB aim · click fire · L limp · scroll in: 1P\n %s %s | %s + %s %s | %.1f studs/s | limp %s | %s",
 			stance,
 			if sprinting then "(sprint)" else "",
 			tostring(slots.body),
@@ -1063,6 +1090,8 @@ function MoveTest.start()
 
 	-- after the Animator: lean, 1P gun lag (on the root joint: in 1P only the arms and rifle show, so the whole view
 	-- model lags together; Transform isn't replicated)
+	-- the live layer's joints get the Animator's pose back before each animation step (see liveBegin)
+	RunService.PreAnimation:Connect(liveRestore)
 	RunService.PreSimulation:Connect(function(dt)
 		local r = rig
 		if not r then
@@ -1129,32 +1158,53 @@ function MoveTest.start()
 			-- together about the shoulder line by the camera's pitch (user 2026-11-25: "follow the camera"; the up holds
 			-- are keyed level, so their breathing sway and the recoil climb stay on top). Not in the safe carry, low
 			-- ready, sprint or a one-shot. In the live layer, so a second pass before the Animator doesn't stack it.
+			-- (workspace attribute GunPitchFollow = false turns it off, for comparison)
 			local upW = carry.ready * math.max(carry.hip, carry.aim)
+			local camPitch = math.asin(math.clamp(camera.CFrame.LookVector.Y, -1, 1))
+			local limit = math.rad(if stance == "prone" then PITCH.prone else PITCH.max)
+			local turn = math.clamp(camPitch, -limit, limit) * math.clamp(upW, 0, 1)
 			if
 				r.gun
-				and upW > 1e-3
+				and math.abs(turn) > 1e-4
 				and not oneShot
 				and not vaulting
 				and r.hum:GetState() ~= Enum.HumanoidStateType.Swimming
+				and workspace:GetAttribute("GunPitchFollow") ~= false
 			then
-				local torsoCf = r.root.CFrame
-					* r.rootJoint.C0
-					* r.rootJoint.Transform
-					* r.rootJoint.C1:Inverse()
-				local gunLook = (torsoCf * r.gun.C0 * r.gun.Transform * r.gun.C1:Inverse()).LookVector
-				local camPitch = math.asin(math.clamp(camera.CFrame.LookVector.Y, -1, 1))
-				local limit = math.rad(if stance == "prone" then PITCH.prone else PITCH.max)
-				local turn = math.clamp(camPitch, -limit, limit) * upW
-				local axis = gunLook:Cross(Vector3.yAxis)
-				if axis.Magnitude > 1e-3 and math.abs(turn) > 1e-4 then
-					local pivot = CFrame.new(PITCH.pivot)
-					local spin = pivot
-						* CFrame.fromAxisAngle(torsoCf:VectorToObjectSpace(axis.Unit), turn)
-						* pivot:Inverse()
-					r.gun.Transform = r.gun.C0:Inverse() * spin * r.gun.C0 * r.gun.Transform
-					for _, m in r.shoulders do
-						m.Transform = m.C0:Inverse() * spin * m.C0 * m.Transform
+				-- a plain turn about the torso's own left-right line through the shoulders (the up holds point the gun
+				-- ahead of the torso). The first version took its axis from the gun's direction, which collapses as the
+				-- gun points near straight up or down (the gun flew off, 2026-11-25).
+				local pivot = CFrame.new(PITCH.pivot)
+				local spin = pivot * CFrame.Angles(turn, 0, 0) * pivot:Inverse()
+				local function turned(m: Motor6D): CFrame?
+					local t = m.C0:Inverse() * spin * m.C0 * m.Transform
+					local p = t.Position
+					-- never write a broken pose: finite, and the joint moved no more than the turn can move it
+					if
+						p.X ~= p.X
+						or p.Y ~= p.Y
+						or p.Z ~= p.Z
+						or (p - m.Transform.Position).Magnitude > 3
+					then
+						return nil
 					end
+					return t
+				end
+				local new = { [r.gun] = turned(r.gun) }
+				local ok = new[r.gun] ~= nil
+				for _, m in r.shoulders do
+					new[m] = turned(m)
+					ok = ok and new[m] ~= nil
+				end
+				if ok then
+					for m, t in new do
+						m.Transform = t :: CFrame
+					end
+				else
+					player:SetAttribute(
+						"M2PitchSkips",
+						(player:GetAttribute("M2PitchSkips") or 0) + 1
+					)
 				end
 			end
 			local look = camera.CFrame.LookVector
@@ -1191,7 +1241,6 @@ function MoveTest.start()
 				r.rootJoint.Transform = inJoint(C0.root, CFrame.new(viewLift() * vmBlend))
 					* r.rootJoint.Transform
 			end
-			liveEnd(live)
 		end
 		lastLook = camera.CFrame.LookVector
 	end)
@@ -1203,6 +1252,9 @@ function MoveTest.start()
 		if not r then
 			return
 		end
+		-- first person is the camera zoomed all the way in with the mouse wheel (Roblox's Classic camera then locks
+		-- the mouse and hides the body)
+		firstPerson = (camera.CFrame.Position - camera.Focus.Position).Magnitude < 1
 		-- (minus the 1P view lift: the camera stays at the real eye while the shown arms ride up)
 		local rel = r.root.CFrame:PointToObjectSpace(r.head.Position)
 			- Vector3.new(0, 1.5, 0)
