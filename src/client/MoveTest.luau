@@ -114,6 +114,30 @@ local C0 = {
 	rightLeg = CFrame.new(0, 0, 0, 0, 0, 1, 0, 1, 0, -1, 0, 0),
 	leftLeg = CFrame.new(0, 0, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0),
 }
+-- The live layer multiplies onto the Animator's pose. If it runs again before the Animator has rewritten a joint
+-- (a skipped or throttled animation step), multiplying onto its own result would stack the turn every pass (a sibling
+-- branch saw a gun spin 100 studs off). So each pass starts from the Animator's pose: if a joint still holds exactly
+-- what the last pass wrote, that pass's base is used again.
+local liveBase: { [Motor6D]: { base: CFrame, wrote: CFrame } } = setmetatable({}, { __mode = "k" }) :: any
+local function liveBegin(joints: { Motor6D })
+	for _, j in joints do
+		local rec = liveBase[j]
+		if rec and j.Transform == rec.wrote then
+			j.Transform = rec.base
+		else
+			liveBase[j] = { base = j.Transform, wrote = j.Transform }
+		end
+	end
+end
+local function liveEnd(joints: { Motor6D })
+	for _, j in joints do
+		local rec = liveBase[j]
+		if rec then
+			rec.wrote = j.Transform
+		end
+	end
+end
+
 local function inJoint(c0: CFrame, body: CFrame): CFrame
 	return c0:Inverse() * body * c0
 end
@@ -1031,80 +1055,93 @@ function MoveTest.start()
 		if hookMove then
 			r.hum:Move(hookMove :: Vector3, false)
 		end
-		MoveTest.applyLean(r, leanA)
-		-- live layer (the study's noise, left out of the baked loops): a slow trunk drift and a head glance when not
-		-- aiming, so no two cycles look the same
-		local calm = 1 - 0.65 * carry.aim
-		local drift = CFrame.Angles(
-			math.rad(1.2 * noise(life, 4.2) * calm),
-			math.rad(2 * noise(life, 5.3) * calm),
-			0
-		)
-		r.rootJoint.Transform = inJoint(C0.root, drift) * r.rootJoint.Transform
-		if r.neck and stance ~= "prone" then
-			local glance = (4 * noise(life, 8.8) + 1.5 * noise(life, 12.1)) * (1 - carry.aim)
-			r.neck.Transform = r.neck.Transform * CFrame.Angles(0, 0, math.rad(glance))
-		end
-		-- recoil: a spring kicked by each shot; the rifle goes back into the shoulder and the muzzle climbs, the
-		-- upper body rocks back a little with it
 		carry.recV += (-2 * 0.5 * (2 * math.pi * 6) * carry.recV - (2 * math.pi * 6) ^ 2 * carry.rec) * dt
 		carry.rec += carry.recV * dt
 		carry.flash = math.max(0, carry.flash - dt)
-		if math.abs(carry.rec) > 1e-4 then
-			if r.gun then
-				r.gun.Transform = r.gun.Transform
-					* CFrame.new(0, 0.02 * carry.rec, 0.08 * carry.rec)
-					* CFrame.Angles(math.rad(3 * carry.rec * (1 - 0.5 * carry.aim)), 0, 0)
+		local live = { r.rootJoint, r.rightHip, r.leftHip }
+		if r.neck then
+			table.insert(live, r.neck)
+		end
+		if r.gun then
+			table.insert(live, r.gun)
+		end
+		-- test hook: run the live layer twice per step to prove it doesn't stack (player attribute M2DoubleStep)
+		for _ = 1, if player:GetAttribute("M2DoubleStep") == true then 2 else 1 do
+			liveBegin(live)
+			MoveTest.applyLean(r, leanA)
+			-- live layer (the study's noise, left out of the baked loops): a slow trunk drift and a head glance when not
+			-- aiming, so no two cycles look the same
+			local calm = 1 - 0.65 * carry.aim
+			local drift = CFrame.Angles(
+				math.rad(1.2 * noise(life, 4.2) * calm),
+				math.rad(2 * noise(life, 5.3) * calm),
+				0
+			)
+			r.rootJoint.Transform = inJoint(C0.root, drift) * r.rootJoint.Transform
+			if r.neck and stance ~= "prone" then
+				local glance = (4 * noise(life, 8.8) + 1.5 * noise(life, 12.1)) * (1 - carry.aim)
+				r.neck.Transform = r.neck.Transform * CFrame.Angles(0, 0, math.rad(glance))
 			end
-			r.rootJoint.Transform = inJoint(
-				C0.root,
-				CFrame.Angles(math.rad(-1.2 * carry.rec), 0, 0)
-			) * r.rootJoint.Transform
+			-- recoil: a spring kicked by each shot; the rifle goes back into the shoulder and the muzzle climbs, the
+			-- upper body rocks back a little with it
+			if math.abs(carry.rec) > 1e-4 then
+				if r.gun then
+					r.gun.Transform = r.gun.Transform
+						* CFrame.new(0, 0.02 * carry.rec, 0.08 * carry.rec)
+						* CFrame.Angles(math.rad(3 * carry.rec * (1 - 0.5 * carry.aim)), 0, 0)
+				end
+				r.rootJoint.Transform = inJoint(
+					C0.root,
+					CFrame.Angles(math.rad(-1.2 * carry.rec), 0, 0)
+				) * r.rootJoint.Transform
+			end
+			local muzzle = r.char:FindFirstChild("BlockoutRifle")
+			local flashPart = muzzle and muzzle:FindFirstChild("Muzzle")
+			if flashPart and flashPart:IsA("BasePart") then
+				flashPart.Color = if carry.flash > 0
+					then Color3.fromRGB(255, 210, 122)
+					else Color3.fromHex("2b2d2f")
+				flashPart.Material = if carry.flash > 0
+					then Enum.Material.Neon
+					else Enum.Material.SmoothPlastic
+			end
+			local look = camera.CFrame.LookVector
+			if firstPerson and lastLook and not viewModel then
+				local _, y1 = CFrame.lookAt(Vector3.zero, look):ToOrientation()
+				local p1, y0 = CFrame.lookAt(Vector3.zero, lastLook):ToOrientation()
+				local x1 = math.asin(math.clamp(look.Y, -1, 1))
+				local dyaw = ((math.deg(y1 - y0) + 180) % 360 - 180) / math.max(dt, 1e-3)
+				local dpitch = math.deg(x1 - math.asin(math.clamp(lastLook.Y, -1, 1)))
+					/ math.max(dt, 1e-3)
+				local _ = p1
+				local k = 1 - math.exp(-dt * 3 / LAG.settle)
+				lagYaw += (math.clamp(-dyaw * 0.03, -LAG.max, LAG.max) - lagYaw) * k
+				lagPitch += (math.clamp(-dpitch * 0.03, -LAG.max, LAG.max) - lagPitch) * k
+				local eye = Vector3.new(0, 1.5, 0)
+				local lag = CFrame.new(eye)
+					* CFrame.Angles(math.rad(lagPitch), math.rad(lagYaw), 0)
+					* CFrame.new(-eye)
+				r.rootJoint.Transform = inJoint(C0.root, lag) * r.rootJoint.Transform
+			else
+				lagYaw, lagPitch = 0, 0
+			end
+			-- 1P stopgap until the viewmodel rules (guide §5.3): only the arms and rifle show, and the low carry sits
+			-- below the view, so standing and crouched the whole (hidden) body rides up and forward to bring the rifle
+			-- into the lower right of the screen. Prone and swimming the view already shows it.
+			local want = if firstPerson
+					and not viewModel
+					and stance ~= "prone"
+					and r.hum:GetState() ~= Enum.HumanoidStateType.Swimming
+				then 1
+				else 0
+			vmBlend += (want - vmBlend) * (1 - math.exp(-dt * 12))
+			if vmBlend > 1e-3 then
+				r.rootJoint.Transform = inJoint(C0.root, CFrame.new(viewLift() * vmBlend))
+					* r.rootJoint.Transform
+			end
+			liveEnd(live)
 		end
-		local muzzle = r.char:FindFirstChild("BlockoutRifle")
-		local flashPart = muzzle and muzzle:FindFirstChild("Muzzle")
-		if flashPart and flashPart:IsA("BasePart") then
-			flashPart.Color = if carry.flash > 0
-				then Color3.fromRGB(255, 210, 122)
-				else Color3.fromHex("2b2d2f")
-			flashPart.Material = if carry.flash > 0
-				then Enum.Material.Neon
-				else Enum.Material.SmoothPlastic
-		end
-		local look = camera.CFrame.LookVector
-		if firstPerson and lastLook then
-			local _, y1 = CFrame.lookAt(Vector3.zero, look):ToOrientation()
-			local p1, y0 = CFrame.lookAt(Vector3.zero, lastLook):ToOrientation()
-			local x1 = math.asin(math.clamp(look.Y, -1, 1))
-			local dyaw = ((math.deg(y1 - y0) + 180) % 360 - 180) / math.max(dt, 1e-3)
-			local dpitch = math.deg(x1 - math.asin(math.clamp(lastLook.Y, -1, 1)))
-				/ math.max(dt, 1e-3)
-			local _ = p1
-			local k = 1 - math.exp(-dt * 3 / LAG.settle)
-			lagYaw += (math.clamp(-dyaw * 0.03, -LAG.max, LAG.max) - lagYaw) * k
-			lagPitch += (math.clamp(-dpitch * 0.03, -LAG.max, LAG.max) - lagPitch) * k
-			local eye = Vector3.new(0, 1.5, 0)
-			local lag = CFrame.new(eye)
-				* CFrame.Angles(math.rad(lagPitch), math.rad(lagYaw), 0)
-				* CFrame.new(-eye)
-			r.rootJoint.Transform = inJoint(C0.root, lag) * r.rootJoint.Transform
-		else
-			lagYaw, lagPitch = 0, 0
-		end
-		-- 1P stopgap until the viewmodel rules (guide §5.3): only the arms and rifle show, and the low carry sits
-		-- below the view, so standing and crouched the whole (hidden) body rides up and forward to bring the rifle
-		-- into the lower right of the screen. Prone and swimming the view already shows it.
-		local want = if firstPerson
-				and stance ~= "prone"
-				and r.hum:GetState() ~= Enum.HumanoidStateType.Swimming
-			then 1
-			else 0
-		vmBlend += (want - vmBlend) * (1 - math.exp(-dt * 12))
-		if vmBlend > 1e-3 then
-			r.rootJoint.Transform = inJoint(C0.root, CFrame.new(viewLift() * vmBlend))
-				* r.rootJoint.Transform
-		end
-		lastLook = look
+		lastLook = camera.CFrame.LookVector
 	end)
 
 	-- camera: follows the head (stance changes, lean, vault) on a fast spring; in 1P a light bob instead of the
