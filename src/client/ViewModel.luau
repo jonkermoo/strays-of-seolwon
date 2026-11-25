@@ -63,6 +63,9 @@ local RIFLES: { [string]: { aim: Vector3, right: Vector3, left: Vector3 } } = {
 local FROM_R = Vector3.new(0.21, -0.532, 0.126) * M
 local FROM_L = Vector3.new(-0.34, -0.50, -0.02) * M
 local ARM_W, ARM_L, FOLLOW = 0.5, 2, 0.75
+-- going prone or getting up the left hand leaves the gun and goes down to the ground (user 2026-11-25: "when we prone or
+-- get up, we put an arm down"), out of view at the lower left (camera space, metres); when is the body clip's (armDown)
+local DOWN_L = Vector3.new(-0.30, -0.80, -0.35) * M
 -- breathing (gun only, never the camera): pitch 0.6 deg, yaw 0.25 deg, 4 s; aiming keeps x0.3
 local BREATH = { pitch = 0.6, yaw = 0.25, period = 4, aim = 0.3 }
 -- turn lag (§4.1): the gun trails the view up to 3 deg and settles in ~0.15 s
@@ -247,7 +250,7 @@ function ViewModel.current(self: ViewModel): Pose
 end
 
 -- every frame. state: fp (first person on), target ("safe" | "ready" | "hip" | "aim" | "sprint"), rec (recoil spring),
--- aim (0..1), speed (studs/s), phase (gait 0..1)
+-- aim (0..1), speed (studs/s), phase (gait 0..1), armDown (0..1: the left hand off the gun and down, from the body)
 function ViewModel.update(
 	self: ViewModel,
 	dt: number,
@@ -259,6 +262,7 @@ function ViewModel.update(
 		aim: number,
 		speed: number,
 		phase: number,
+		armDown: number?,
 	}
 )
 	if not state.fp then
@@ -337,12 +341,19 @@ function ViewModel.update(
 	local up = gun.UpVector
 	local camCf = camera.CFrame
 	local armCfs = {}
+	local down = math.clamp(state.armDown or 0, 0, 1)
+	down = down * down * (3 - 2 * down)
 	for i, side in { "Right", "Left" } do
 		local hand = gun * (if side == "Right" then self.points.right else self.points.left)
+		local off = if side == "Left" then down else 0 -- the left hand on its way to the ground
+		if off > 0 then
+			hand = hand:Lerp(camCf * DOWN_L, off)
+		end
 		local root = camCf * (if side == "Right" then FROM_R else FROM_L)
 		local toRoot = (root - hand).Unit
 		local withGun = gun:VectorToWorldSpace(self.armDir[side])
-		local dir = (toRoot * (1 - FOLLOW) + withGun * FOLLOW).Unit -- hand -> elbow
+		local follow = FOLLOW * (1 - off)
+		local dir = (toRoot * (1 - follow) + withGun * follow).Unit -- hand -> elbow
 		local x = dir:Cross(up)
 		x = if x.Magnitude < 1e-4 then camCf.RightVector else x.Unit
 		local z = x:Cross(dir).Unit -- nearest gun up
@@ -350,7 +361,7 @@ function ViewModel.update(
 		local xx = yAxis:Cross(z).Unit
 		local centre = hand + dir * (ARM_L / 2)
 		if side == "Left" then
-			centre -= z * (ARM_W / 2) -- top face flat under the handguard
+			centre -= z * (ARM_W / 2 * (1 - off)) -- top face flat under the handguard
 		end
 		armCfs[i] = CFrame.fromMatrix(centre, xx, yAxis, z)
 	end

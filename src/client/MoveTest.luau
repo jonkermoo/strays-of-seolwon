@@ -7,8 +7,9 @@
 --   F or right mouse aim (walk 8) · left click or X fire (hip fire unless aiming)
 -- The cycles, holds, stance changes and vaults are baked from the jarvis motion study (v11, approved 2026-11-23;
 -- tools/animation/baked.luau). Carry (study): with nothing happening the rifle rests in the safe carry; firing or
--- aiming brings it up (0.3 s from safe to the first shot), hip fire holds 0.6 s after the last shot, then low ready,
--- and after 4 s of rest the safe carry again. Leaning and going prone / getting up count as alert.
+-- aiming brings it up (0.3 s from safe to the first shot); after the last shot or letting go of aim the gun stays up
+-- on the crosshair 8 s, then goes to the safe carry (user 2026-11-25). Leaning and going prone / getting up raise it to
+-- low ready, back to safe after 4 s of rest.
 -- The clips aren't uploaded: KeyframeSequenceProvider:RegisterKeyframeSequence (works in Studio only).
 -- Test hooks (Studio MCP, no key mapping): player attribute "M2Cmd" = "crouch" | "prone" | "jump" | "limp" | "camera"
 -- | "sprintOn" | "sprintOff" | "leanL" | "leanR" | "leanOff" | "fire" | "aimOn" | "aimOff"; "M2Move" (Vector3,
@@ -48,13 +49,15 @@ local NOMINAL = {
 	AimCrouchWalk = 7,
 }
 -- carry (motion study): rest delay, raise / lower smoothing, hip-fire hold, aim tween, recoil
+-- hipHold (user 2026-11-25): after a shot or after letting go of aim the gun stays up on the crosshair 8 s, then goes
+-- to the safe carry, "similar rule as idle to safety"
 local CARRY = {
 	rest = 4,
 	raise = 0.1,
 	lower = 0.32,
 	hipIn = 0.05,
 	hipOut = 0.14,
-	hipHold = 0.6,
+	hipHold = 8,
 	aimUp = 0.2,
 	aimDown = 0.18,
 }
@@ -251,6 +254,7 @@ function MoveTest.start()
 		hip = 0,
 		hipV = 0,
 		hipT = 99,
+		wasAim = false,
 		aimIn = false,
 		aimLin = 0,
 		aim = 0,
@@ -774,7 +778,13 @@ function MoveTest.start()
 		else
 			carry.alertT += dt
 		end
-		local alert = carry.alertT < CARRY.rest or carry.shots > 0
+		-- letting go of aim starts the hold up on the crosshair, as a shot does
+		if carry.wasAim and not aimOn then
+			carry.hipT = 0
+		end
+		carry.wasAim = aimOn
+		local holdUp = not aimOn and carry.hipT < CARRY.hipHold
+		local alert = carry.alertT < CARRY.rest or carry.shots > 0 or holdUp
 		carry.ready, carry.readyV = damp(
 			carry.ready,
 			carry.readyV,
@@ -1171,6 +1181,24 @@ function MoveTest.start()
 			-- 1P: a client-only view (the rifle and slim forearms in camera space); the body stays hidden
 			if viewModel then
 				local v = r.root.AssemblyLinearVelocity
+				-- going prone / getting up: how far the body's left hand is off the gun (its distance from the gun's
+				-- centre line, ~0.2 on the gun, 1.4-1.8 planted), so the first-person hand goes down with the clip
+				local armDown = 0
+				local gunPart = r.gun and r.gun.Part1
+				local leftArm = r.char:FindFirstChild("Left Arm")
+				if
+					oneShot
+					and string.find(oneShotName, "Prone")
+					and gunPart
+					and leftArm
+					and leftArm:IsA("BasePart")
+				then
+					local h = gunPart.CFrame:PointToObjectSpace(
+						(leftArm.CFrame * CFrame.new(0, -0.8, 0)).Position
+					)
+					local off = (h - Vector3.new(0, 0, math.clamp(h.Z, -2.1, 1.2))).Magnitude
+					armDown = math.clamp((off - 0.35) / 0.9, 0, 1)
+				end
 				viewModel:update(dt, camera, {
 					fp = fp,
 					target = vmTarget,
@@ -1178,6 +1206,7 @@ function MoveTest.start()
 					aim = carry.aim,
 					speed = Vector3.new(v.X, 0, v.Z).Magnitude,
 					phase = bobPhase,
+					armDown = armDown,
 				})
 			elseif fp then
 				-- no rifle to copy: show the body's arms and rifle as before
