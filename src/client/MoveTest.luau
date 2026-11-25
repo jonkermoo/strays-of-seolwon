@@ -62,6 +62,8 @@ local CARRY = {
 	aimDown = 0.18,
 }
 local FIRE = { gap = 0.1, kick = 9, flash = 0.05 }
+-- the gun up follows the camera's pitch (degrees at most; turned about the shoulder line, torso space)
+local PITCH = { max = 60, prone = 20, pivot = Vector3.new(0, 0.5, 0) }
 local SPRINT_CONE = math.cos(math.rad(50)) -- sprint only within 50 deg of the camera look
 local BLEND = 0.13 -- §3.11 0.12-0.15
 local LEAN = { tilt = 20, inTime = 0.15, outTime = 0.12, roll = 8 } -- §3.8 (+ 1P camera roll, approved proposal)
@@ -147,6 +149,7 @@ type Rig = {
 	leftHip: Motor6D,
 	neck: Motor6D?,
 	gun: Motor6D?,
+	shoulders: { [string]: Motor6D },
 	tracks: { [string]: AnimationTrack },
 }
 
@@ -182,6 +185,10 @@ local function loadRig(char: Model): Rig?
 		leftHip = torso:WaitForChild("Left Hip") :: Motor6D,
 		neck = torso:FindFirstChild("Neck") :: Motor6D?,
 		gun = torso:WaitForChild("Gun", 5) :: Motor6D?,
+		shoulders = {
+			["Right Shoulder"] = torso:FindFirstChild("Right Shoulder") :: Motor6D,
+			["Left Shoulder"] = torso:FindFirstChild("Left Shoulder") :: Motor6D,
+		},
 		tracks = tracks,
 	}
 end
@@ -271,6 +278,7 @@ function MoveTest.start()
 	local bobPhase = 0
 	local viewModel: ViewModel.ViewModel? = nil -- the first-person copy (rifle + slim forearms)
 	local vmTarget = "safe"
+	local pitchSet: CFrame? = nil -- the right shoulder's Transform as the camera-pitch turn last left it
 	local lagYaw, lagPitch = 0, 0
 	local vmBlend = 0
 	local liftNow = VIEW_LIFT
@@ -1080,6 +1088,48 @@ function MoveTest.start()
 			flashPart.Material = if carry.flash > 0
 				then Enum.Material.Neon
 				else Enum.Material.SmoothPlastic
+		end
+		-- the gun up (hip fire, the 8 s hold, aim) points at the crosshair's height: the gun and both arms turn together
+		-- about the shoulder line by the camera's pitch (user 2026-11-25: "follow the camera"; the up holds are keyed
+		-- level, so turning by the camera's pitch keeps their breathing sway and the recoil climb on top). Not in the
+		-- safe carry, low ready, sprint or a one-shot.
+		local upW = carry.ready * math.max(carry.hip, carry.aim)
+		if
+			r.gun
+			and upW > 1e-3
+			and not oneShot
+			and not vaulting
+			and r.hum:GetState() ~= Enum.HumanoidStateType.Swimming
+		then
+			local torsoCf = r.root.CFrame
+				* r.rootJoint.C0
+				* r.rootJoint.Transform
+				* r.rootJoint.C1:Inverse()
+			local gunLook = (torsoCf * r.gun.C0 * r.gun.Transform * r.gun.C1:Inverse()).LookVector
+			local camPitch = math.asin(math.clamp(camera.CFrame.LookVector.Y, -1, 1))
+			local limit = math.rad(if stance == "prone" then PITCH.prone else PITCH.max)
+			local turn = math.clamp(camPitch, -limit, limit) * upW
+			local axis = gunLook:Cross(Vector3.yAxis)
+			if axis.Magnitude > 1e-3 and math.abs(turn) > 1e-4 then
+				local pivot = CFrame.new(PITCH.pivot)
+				local spin = pivot
+					* CFrame.fromAxisAngle(torsoCf:VectorToObjectSpace(axis.Unit), turn)
+					* pivot:Inverse()
+				-- once per animation update: when the Animator has not written the joints since the last turn (this
+				-- step can run more often than it), turning again would stack (the gun spun off the body)
+				local rs = r.shoulders["Right Shoulder"]
+				local fresh = not (rs and pitchSet and rs.Transform == pitchSet)
+				if fresh then
+					r.gun.Transform = r.gun.C0:Inverse() * spin * r.gun.C0 * r.gun.Transform
+					for _, name in { "Right Shoulder", "Left Shoulder" } do
+						local m = r.shoulders[name]
+						if m then
+							m.Transform = m.C0:Inverse() * spin * m.C0 * m.Transform
+						end
+					end
+					pitchSet = if rs then rs.Transform else nil
+				end
+			end
 		end
 		local look = camera.CFrame.LookVector
 		if firstPerson and lastLook then
